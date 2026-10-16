@@ -1,0 +1,474 @@
+/**
+ * 麟光夜行報名系統 \u2014 Google Apps Script 後端
+ *
+ * 綁定在報名用的 Google 試算表上，部署成「網頁應用程式」後：
+ *   GET  → 回傳公開資訊（活動設定、人數、暱稱清單），永遠不含手機號碼
+ *   POST → 新增一筆報名
+ *
+ * 權限刻意壓到最小：
+ *   - @OnlyCurrentDoc：只能存取「這一份」試算表
+ *   - 只用 MailApp 寄信給固定收件人（NOTIFY_EMAIL），不能讀信、不能寄給別人
+ *
+ * @OnlyCurrentDoc
+ */
+
+// ── 固定設定（不放在試算表裡，避免被改成寄給別人） ─────────────────────
+const NOTIFY_EMAIL = 'hemoparasite@gmail.com';
+
+const SETTINGS_SHEET = '設定';
+const SIGNUP_SHEET = '報名';
+const SIGNUP_HEADERS = ['報名時間', '場次代碼', '暱稱', '手機', '身分', '給主辦的話'];
+const COL = { time: 0, event: 1, nickname: 2, phone: 3, status: 4, message: 5 };
+
+const STATUS_CONFIRMED = '正取';
+const STATUS_WAITLIST = '候補';
+const STATUS_CANCELLED = '取消';
+const EVENT_NORMAL = '正常舉行';
+
+const CACHE_KEY = 'public-state-v1';
+const CACHE_SECONDS = 30;
+const RATE_LIMIT_PER_MINUTE = 20;
+const MAX_BODY_LENGTH = 2000;
+const NICKNAME_MAX = 12;
+const MESSAGE_MAX = 200;
+
+// 試算表「設定」分頁的預設內容：[項目, 值, 說明]
+const DEFAULT_SETTINGS = [
+  ['場次代碼', '2026-10-23', '每場唯一的代碼。辦下一場時換一個新的（例如新日期），人數會從 0 開始算'],
+  ['活動名稱', '麟光夜行・富陽生態公園', ''],
+  ['場次標題', '第 1 場', ''],
+  ['活動日期', '2026-10-23', '格式 YYYY-MM-DD'],
+  ['開始時間', '19:00', '24 小時制 HH:MM'],
+  ['結束時間', '21:00', '24 小時制 HH:MM'],
+  ['集合地點', '捷運麟光站 1 號出口', ''],
+  ['地圖連結', 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('捷運麟光站 1號出口'), ''],
+  ['路線', '富陽自然生態公園', ''],
+  ['費用', '免費', ''],
+  ['正取上限', '10', '加開名額時調高。候補不會自動轉正取，請到「報名」分頁把「候補」改成「正取」'],
+  ['候補上限', '5', ''],
+  ['報名截止', '2026-10-23 12:00', '格式 YYYY-MM-DD HH:MM（台灣時間），留空代表不截止'],
+  ['報名開關', '開', '「開」或「關」'],
+  ['活動狀態', EVENT_NORMAL, '正常舉行／因雨取消／延期。非「正常舉行」時網頁會顯示橫幅並停止報名'],
+  ['狀態補充說明', '', '顯示在橫幅裡，例如「延期至 10/30（五）」'],
+  ['攜帶提醒', '手電筒\n長袖長褲\n鞋子（建議雨鞋）\n愉快的心情', '一行一項（儲存格內換行：Ctrl+Enter）'],
+  ['雨天規則', '當天 15:00 台北市降雨機率 ≥ 70% 即取消，16:00 前於本頁公告。', ''],
+  ['聯絡Email', 'hemoparasite@gmail.com', '公開顯示在網頁上'],
+  ['聯絡LINE ID', 'hemoparasite', '公開顯示在網頁上'],
+];
+
+// ── 網頁應用程式進入點 ───────────────────────────────────────────────
+
+function doGet() {
+  try {
+    return json_(getPublicState_());
+  } catch (err) {
+    console.error(err);
+    return json_({ ok: false, error: 'server', message: '暫時無法讀取報名狀況，請稍後再試。' });
+  }
+}
+
+function doPost(e) {
+  try {
+    const raw = e && e.postData ? String(e.postData.contents || '') : '';
+    if (!raw || raw.length > MAX_BODY_LENGTH) return json_(fail_('invalid', '送出的資料格式不正確。'));
+    let body;
+    try {
+      body = JSON.parse(raw);
+    } catch (parseErr) {
+      return json_(fail_('invalid', '送出的資料格式不正確。'));
+    }
+    return json_(handleSignup_(body || {}));
+  } catch (err) {
+    console.error(err);
+    return json_(fail_('server', '系統發生錯誤，請稍後再試，或直接聯絡主辦。'));
+  }
+}
+
+// ── 報名 ────────────────────────────────────────────────────────────
+
+function handleSignup_(body) {
+  // honeypot：真人看不到這個欄位，有填就是機器人
+  if (body.website) return fail_('invalid', '送出失敗，請重新整理頁面再試一次。');
+
+  const nickname = normalizeNickname_(body.nickname);
+  const phone = normalizePhone_(body.phone);
+  const message = normalizeMessage_(body.message);
+
+  const nicknameLength = Array.from(nickname).length;
+  if (nicknameLength < 1 || nicknameLength > NICKNAME_MAX) {
+    return fail_('nickname', '暱稱請填 1\u2013' + NICKNAME_MAX + ' 個字。');
+  }
+  if (!/^09\d{8}$/.test(phone)) return fail_('phone', '手機號碼格式不正確，請填 09 開頭的 10 碼數字。');
+  if (Array.from(message).length > MESSAGE_MAX) return fail_('message', '給主辦的話請在 ' + MESSAGE_MAX + ' 字以內。');
+
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return fail_('busy', '目前報名人數較多，請稍等幾秒再送出一次。');
+
+  let result;
+  let settings;
+  let counts;
+  try {
+    if (isRateLimited_()) return fail_('busy', '目前報名人數較多，請稍等一分鐘再送出。');
+
+    settings = readSettings_();
+    const rows = readSignups_(settings.eventId);
+    const active = rows.filter(r => r.status === STATUS_CONFIRMED || r.status === STATUS_WAITLIST);
+
+    if (active.some(r => normalizePhone_(r.phone) === phone)) {
+      return fail_('duplicate', '這支手機已經報名過本場囉！如需修改或取消，請聯絡主辦。');
+    }
+
+    const nConfirmed = rows.filter(r => r.status === STATUS_CONFIRMED).length;
+    const nWaitlist = rows.filter(r => r.status === STATUS_WAITLIST).length;
+    const reg = registrationState_(settings, nConfirmed, nWaitlist, new Date());
+    if (!reg.open) return fail_(reg.reason, closedMessage_(reg.reason));
+
+    const status = reg.mode;
+    const position = status === STATUS_CONFIRMED ? nConfirmed + 1 : nWaitlist + 1;
+
+    // 一律加上 ' 前綴：存成純文字，避免公式注入，也保住手機開頭的 0
+    sheet_(SIGNUP_SHEET).appendRow([
+      new Date(),
+      asText_(settings.eventId),
+      asText_(nickname),
+      asText_(phone),
+      status,
+      message ? asText_(message) : '',
+    ]);
+    SpreadsheetApp.flush();
+    CacheService.getScriptCache().remove(CACHE_KEY);
+
+    counts = {
+      confirmed: nConfirmed + (status === STATUS_CONFIRMED ? 1 : 0),
+      waitlist: nWaitlist + (status === STATUS_WAITLIST ? 1 : 0),
+    };
+    result = { ok: true, status: status, position: position, nickname: nickname, capacity: settings.capacity };
+  } finally {
+    lock.releaseLock();
+  }
+
+  notifyOrganizer_(settings, result, phone, message, counts);
+  return result;
+}
+
+function notifyOrganizer_(settings, result, phone, message, counts) {
+  try {
+    const rank = result.status === STATUS_CONFIRMED
+      ? '正取 ' + result.position + '/' + settings.capacity
+      : '候補 ' + result.position + '/' + settings.waitlistCapacity;
+    const subject = '【' + settings.name + '】新報名：' + result.nickname + '（' + rank + '）';
+    const body = [
+      '暱稱：' + result.nickname,
+      '手機：' + phone,
+      '身分：' + rank,
+      '給主辦的話：' + (message || '（無）'),
+      '',
+      '目前正取 ' + counts.confirmed + '/' + settings.capacity + '，候補 ' + counts.waitlist + '/' + settings.waitlistCapacity,
+      '場次：' + settings.eventId + ' ' + settings.title,
+      '',
+      '報名試算表：' + SpreadsheetApp.getActiveSpreadsheet().getUrl(),
+    ].join('\n');
+    MailApp.sendEmail({ to: NOTIFY_EMAIL, subject: subject, body: body });
+  } catch (err) {
+    // 寄信失敗（例如超過每日配額）不影響報名本身
+    console.error('notify failed', err);
+  }
+}
+
+// ── 公開資訊 ────────────────────────────────────────────────────────
+
+function getPublicState_() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get(CACHE_KEY);
+  if (hit) return JSON.parse(hit);
+  const state = buildPublicState_();
+  cache.put(CACHE_KEY, JSON.stringify(state), CACHE_SECONDS);
+  return state;
+}
+
+function buildPublicState_() {
+  const s = readSettings_();
+  const rows = readSignups_(s.eventId);
+  const confirmed = rows.filter(r => r.status === STATUS_CONFIRMED).map(r => r.nickname);
+  const waitlist = rows.filter(r => r.status === STATUS_WAITLIST).map(r => r.nickname);
+  return {
+    ok: true,
+    event: {
+      id: s.eventId,
+      name: s.name,
+      title: s.title,
+      date: s.date,
+      start: s.start,
+      end: s.end,
+      place: s.place,
+      mapUrl: s.mapUrl,
+      route: s.route,
+      fee: s.fee,
+      status: s.status,
+      statusNote: s.statusNote,
+      bring: s.bring,
+      rainRule: s.rainRule,
+      contactEmail: s.contactEmail,
+      contactLine: s.contactLine,
+      deadline: s.deadlineText,
+    },
+    capacity: s.capacity,
+    waitlistCapacity: s.waitlistCapacity,
+    confirmed: confirmed,
+    waitlist: waitlist,
+    registration: registrationState_(s, confirmed.length, waitlist.length, new Date()),
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * 決定目前能不能報名、報進去是正取還是候補。
+ * 只要還有人在候補，新報名一律進候補（空出的名額由主辦手動遞補）。
+ */
+function registrationState_(s, nConfirmed, nWaitlist, now) {
+  if (s.status !== EVENT_NORMAL) return { open: false, mode: null, reason: 'status' };
+  if (!s.switchOn) return { open: false, mode: null, reason: 'closed' };
+  if (s.deadline && now.getTime() >= s.deadline.getTime()) return { open: false, mode: null, reason: 'deadline' };
+  if (nConfirmed < s.capacity && nWaitlist === 0) return { open: true, mode: STATUS_CONFIRMED, reason: null };
+  if (nWaitlist < s.waitlistCapacity) return { open: true, mode: STATUS_WAITLIST, reason: null };
+  return { open: false, mode: null, reason: 'full' };
+}
+
+function closedMessage_(reason) {
+  switch (reason) {
+    case 'status': return '本場活動目前不開放報名，請看網頁上方的公告。';
+    case 'closed': return '報名已關閉。';
+    case 'deadline': return '報名已截止。';
+    case 'full': return '正取與候補都已額滿，下次請早！';
+    default: return '目前無法報名。';
+  }
+}
+
+// ── 讀取試算表 ──────────────────────────────────────────────────────
+
+function readSettings_() {
+  const values = sheet_(SETTINGS_SHEET).getDataRange().getDisplayValues();
+  const map = {};
+  values.slice(1).forEach(r => {
+    const key = String(r[0] || '').trim();
+    if (key) map[key] = String(r[1] == null ? '' : r[1]).trim();
+  });
+  const get = key => (key in map ? map[key] : '');
+  const deadlineText = get('報名截止');
+  return {
+    eventId: get('場次代碼'),
+    name: get('活動名稱'),
+    title: get('場次標題'),
+    date: get('活動日期'),
+    start: get('開始時間'),
+    end: get('結束時間'),
+    place: get('集合地點'),
+    mapUrl: /^https:\/\//.test(get('地圖連結')) ? get('地圖連結') : '',
+    route: get('路線'),
+    fee: get('費用'),
+    capacity: toNonNegativeInt_(get('正取上限'), 10),
+    waitlistCapacity: toNonNegativeInt_(get('候補上限'), 5),
+    deadlineText: deadlineText,
+    deadline: parseTaipeiDateTime_(deadlineText),
+    switchOn: get('報名開關') === '開',
+    status: get('活動狀態') || EVENT_NORMAL,
+    statusNote: get('狀態補充說明'),
+    bring: get('攜帶提醒').split(/\r?\n|、/).map(x => x.trim()).filter(Boolean),
+    rainRule: get('雨天規則'),
+    contactEmail: get('聯絡Email'),
+    contactLine: get('聯絡LINE ID'),
+  };
+}
+
+function readSignups_(eventId) {
+  const values = sheet_(SIGNUP_SHEET).getDataRange().getDisplayValues();
+  return values.slice(1)
+    .filter(r => String(r[COL.event]).trim() === eventId && String(r[COL.nickname]).trim())
+    .map(r => ({
+      nickname: String(r[COL.nickname]).trim(),
+      phone: String(r[COL.phone]).trim(),
+      status: String(r[COL.status]).trim(),
+    }));
+}
+
+function sheet_(name) {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
+  if (!sh) throw new Error('找不到「' + name + '」分頁，請先從選單執行「初始化／補齊工作表」。');
+  return sh;
+}
+
+// ── 輸入整理 ────────────────────────────────────────────────────────
+
+// 控制字元、零寬字元、文字方向覆寫字元
+const INVISIBLE_CHARS = /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028-\u202E\u2060-\u206F\uFEFF]/g;
+
+function normalizeNickname_(v) {
+  return String(v == null ? '' : v).replace(INVISIBLE_CHARS, '').replace(/\s+/g, ' ').trim();
+}
+
+function normalizePhone_(v) {
+  let p = String(v == null ? '' : v).replace(/[\s\-().]/g, '');
+  p = p.replace(/^\+?886(?=9)/, '0');
+  if (/^9\d{8}$/.test(p)) p = '0' + p; // 試算表把開頭的 0 吃掉時
+  return p;
+}
+
+function normalizeMessage_(v) {
+  return String(v == null ? '' : v)
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u200B-\u200F\u2028-\u202E\u2060-\u206F\uFEFF]/g, '')
+    .trim();
+}
+
+function asText_(v) {
+  return "'" + v;
+}
+
+function toNonNegativeInt_(v, fallback) {
+  const n = parseInt(v, 10);
+  return isNaN(n) || n < 0 ? fallback : n;
+}
+
+/** 解析 "YYYY-MM-DD HH:MM"（台灣時間），格式不對回傳 null。 */
+function parseTaipeiDateTime_(text) {
+  const m = String(text || '').trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})\s+(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 8, +m[5]));
+}
+
+// ── 頻率限制與輸出 ──────────────────────────────────────────────────
+
+/** 全站每分鐘最多 RATE_LIMIT_PER_MINUTE 筆報名請求（在鎖內呼叫）。 */
+function isRateLimited_() {
+  const cache = CacheService.getScriptCache();
+  const key = 'rate-' + Math.floor(Date.now() / 60000);
+  const n = parseInt(cache.get(key) || '0', 10);
+  if (n >= RATE_LIMIT_PER_MINUTE) return true;
+  cache.put(key, String(n + 1), 120);
+  return false;
+}
+
+function fail_(error, message) {
+  return { ok: false, error: error, message: message };
+}
+
+function json_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── 試算表選單與管理工具 ─────────────────────────────────────────────
+
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('🔦 夜行報名')
+    .addItem('初始化／補齊工作表', 'setup')
+    .addItem('立即更新網頁人數', 'clearCache')
+    .addSeparator()
+    .addItem('清除舊場次的手機號碼', 'clearOldPhones')
+    .addItem('清除所有手機號碼（含目前場次）', 'clearAllPhones')
+    .addToUi();
+}
+
+/** 編輯試算表後讓網頁盡快反映（刪除整列不會觸發，最多延遲 30 秒）。 */
+function onEdit() {
+  CacheService.getScriptCache().remove(CACHE_KEY);
+}
+
+function clearCache() {
+  CacheService.getScriptCache().remove(CACHE_KEY);
+  toast_('網頁人數已更新。');
+}
+
+/**
+ * 建立或補齊「設定」與「報名」分頁。可重複執行：已存在的設定值不會被覆蓋。
+ * 第一次部署時從 Apps Script 編輯器執行這個函式，順便完成授權。
+ */
+function setup() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  let settings = ss.getSheetByName(SETTINGS_SHEET);
+  if (!settings) settings = ss.insertSheet(SETTINGS_SHEET, 0);
+  if (settings.getLastRow() === 0) settings.appendRow(['項目', '值', '說明']);
+  const existingKeys = settings.getDataRange().getDisplayValues().slice(1).map(r => String(r[0]).trim());
+  settings.getRange('B:B').setNumberFormat('@');
+  DEFAULT_SETTINGS.forEach(([key, value, note]) => {
+    if (existingKeys.indexOf(key) === -1) settings.appendRow([key, value, note]);
+  });
+  settings.setFrozenRows(1);
+  settings.getRange(1, 1, 1, 3).setFontWeight('bold').setBackground('#1d2742').setFontColor('#ffffff');
+  settings.setColumnWidth(1, 130);
+  settings.setColumnWidth(2, 320);
+  settings.setColumnWidth(3, 420);
+  settings.getRange('B:C').setWrap(true);
+  settings.getRange('A:C').setVerticalAlignment('top');
+  setDropdown_(settings, '報名開關', ['開', '關']);
+  setDropdown_(settings, '活動狀態', [EVENT_NORMAL, '因雨取消', '延期']);
+
+  let signups = ss.getSheetByName(SIGNUP_SHEET);
+  if (!signups) signups = ss.insertSheet(SIGNUP_SHEET, 1);
+  if (signups.getLastRow() === 0) signups.appendRow(SIGNUP_HEADERS);
+  signups.setFrozenRows(1);
+  signups.getRange(1, 1, 1, SIGNUP_HEADERS.length).setFontWeight('bold').setBackground('#1d2742').setFontColor('#ffffff');
+  signups.getRange('B:D').setNumberFormat('@');
+  signups.getRange('F:F').setNumberFormat('@').setWrap(true);
+  signups.setColumnWidth(1, 150);
+  signups.setColumnWidth(6, 320);
+  signups.getRange('E2:E').setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireValueInList([STATUS_CONFIRMED, STATUS_WAITLIST, STATUS_CANCELLED], true)
+      .setAllowInvalid(true)
+      .build()
+  );
+
+  const sheet1 = ss.getSheetByName('工作表1') || ss.getSheetByName('Sheet1');
+  if (sheet1 && sheet1.getLastRow() === 0 && ss.getSheets().length > 2) ss.deleteSheet(sheet1);
+
+  CacheService.getScriptCache().remove(CACHE_KEY);
+  toast_('「設定」與「報名」分頁已就緒。');
+}
+
+function setDropdown_(sheet, key, options) {
+  const keys = sheet.getDataRange().getDisplayValues().map(r => String(r[0]).trim());
+  const row = keys.indexOf(key) + 1;
+  if (row < 1) return;
+  sheet.getRange(row, 2).setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(options, true).setAllowInvalid(false).build()
+  );
+}
+
+function clearOldPhones() {
+  clearPhones_(false);
+}
+
+function clearAllPhones() {
+  clearPhones_(true);
+}
+
+function clearPhones_(includeCurrent) {
+  const ui = SpreadsheetApp.getUi();
+  const currentId = readSettings_().eventId;
+  const scope = includeCurrent ? '所有場次（包含目前場次）' : '目前場次（' + currentId + '）以外的舊場次';
+  const answer = ui.alert('清除手機號碼', '將把' + scope + '的手機號碼改成「（已刪除）」，無法復原。確定嗎？', ui.ButtonSet.YES_NO);
+  if (answer !== ui.Button.YES) return;
+
+  const sh = sheet_(SIGNUP_SHEET);
+  const values = sh.getDataRange().getDisplayValues();
+  let cleared = 0;
+  for (let i = 1; i < values.length; i++) {
+    const eventId = String(values[i][COL.event]).trim();
+    const phone = String(values[i][COL.phone]).trim();
+    if (!phone || phone === '（已刪除）') continue;
+    if (!includeCurrent && eventId === currentId) continue;
+    sh.getRange(i + 1, COL.phone + 1).setValue('（已刪除）');
+    cleared++;
+  }
+  ui.alert('完成', '已清除 ' + cleared + ' 筆手機號碼。', ui.ButtonSet.OK);
+}
+
+function toast_(msg) {
+  try {
+    SpreadsheetApp.getActiveSpreadsheet().toast(msg, '夜行報名', 5);
+  } catch (err) {
+    console.log(msg);
+  }
+}

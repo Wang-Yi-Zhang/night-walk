@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>麟光夜行・富陽生態公園｜線上報名</title>
+  <meta name="description" content="10/23（五）19:00 捷運麟光站集合，夜訪富陽自然生態公園。限額 10 人，免費，線上報名即時看人數。">
+  <meta name="theme-color" content="#0a0f1f">
+
+  <!-- LINE / 社群分享預覽（LINE 不會執行 JavaScript，這裡要寫死） -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="麟光夜行">
+  <meta property="og:title" content="麟光夜行・富陽生態公園｜10/23（五）19:00">
+  <meta property="og:description" content="捷運麟光站 1 號出口集合，夜訪富陽自然生態公園。限額 10 人・免費・線上報名即時看人數。">
+  <meta property="og:url" content="https://wang-yi-zhang.github.io/night-walk/">
+  <meta property="og:image" content="https://wang-yi-zhang.github.io/night-walk/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <script src="config.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="hero">
+    <div class="fireflies" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="hero-inner">
+      <p class="kicker"><span data-field="kicker">夜間生態觀察・第 1 場</span></p>
+      <h1 class="title"><span data-field="title-main">麟光夜行</span><small data-field="title-sub">富陽生態公園</small></h1>
+      <p class="when"><span data-field="when">2026/10/23（五）19:00–21:00</span></p>
+    </div>
+    <svg class="treeline" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 120V78c40-6 60-30 92-28s38 24 70 20 40-46 78-44 44 34 82 30 52-50 96-48 48 40 90 38 40-22 76-20 46 30 88 26 54-56 104-54 50 44 92 42 42-26 82-24 50 32 96 28 60-40 102-38 52 30 82 28V120Z"/>
+    </svg>
+  </header>
+
+  <main class="wrap">
+    <div id="status-banner" class="banner" role="status" hidden></div>
+
+    <!-- 報名人數 -->
+    <section class="card seats" aria-labelledby="seats-h">
+      <div class="seats-head">
+        <h2 id="seats-h" class="eyebrow">報名人數</h2>
+        <p class="seats-count"><b id="count-confirmed">–</b><span class="slash">/</span><span id="count-capacity">10</span><span class="unit">人</span></p>
+      </div>
+      <div id="lanterns" class="lanterns" aria-hidden="true"></div>
+      <p id="seats-note" class="seats-note">讀取報名狀況中…</p>
+
+      <button id="roster-toggle" class="roster-toggle" type="button" aria-expanded="false" aria-controls="roster" hidden>
+        <span>看看誰會來</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 7.5 10 12.5 15 7.5"/></svg>
+      </button>
+      <div id="roster" class="roster" hidden>
+        <h3 class="roster-h">正取</h3>
+        <ul id="roster-confirmed" class="chips"></ul>
+        <div id="roster-waitlist-wrap" hidden>
+          <h3 class="roster-h">候補</h3>
+          <ul id="roster-waitlist" class="chips chips-wait"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 報名區：依狀態顯示其中一個 -->
+    <section id="signup" class="card signup" aria-live="polite">
+      <div id="view-loading" class="view">
+        <p class="muted">讀取報名狀況中…</p>
+      </div>
+
+      <div id="view-error" class="view" hidden>
+        <h2 class="card-h">暫時讀不到報名狀況</h2>
+        <p id="error-text" class="muted">請檢查網路後再試一次。</p>
+        <button id="retry" class="btn btn-ghost" type="button">重新整理</button>
+      </div>
+
+      <div id="view-closed" class="view" hidden>
+        <h2 id="closed-title" class="card-h">報名已截止</h2>
+        <p id="closed-text" class="muted"></p>
+      </div>
+
+      <div id="view-registered" class="view" hidden>
+        <p class="badge-ok">✓ 你已報名</p>
+        <h2 class="card-h"><span id="reg-nickname"></span><span id="reg-status" class="pill"></span></h2>
+        <p id="reg-text" class="muted"></p>
+        <div class="cal-buttons" data-cal></div>
+        <button id="register-another" class="link-btn" type="button">幫朋友報名</button>
+      </div>
+
+      <form id="view-form" class="view form" novalidate hidden>
+        <h2 id="form-title" class="card-h">我要報名</h2>
+        <p id="form-hint" class="muted form-hint" hidden></p>
+
+        <div class="field">
+          <label for="f-nickname">公開暱稱 <span class="req">必填</span></label>
+          <input id="f-nickname" name="nickname" type="text" autocomplete="nickname" enterkeyhint="next" required>
+          <p class="help"><span>會顯示在報名清單上，讓大家認識你</span><span id="nick-count" class="counter">0/12</span></p>
+        </div>
+
+        <div class="field">
+          <label for="f-phone">手機 <span class="req">必填</span></label>
+          <input id="f-phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="0912345678" enterkeyhint="next" required>
+          <p class="help">不公開，僅供當天集合與取消通知聯絡</p>
+        </div>
+
+        <div class="field">
+          <label for="f-message">給主辦的話 <span class="opt">選填</span></label>
+          <textarea id="f-message" name="message" rows="2" maxlength="400" placeholder="例如：第一次參加、會晚 5 分鐘到"></textarea>
+        </div>
+
+        <!-- 給機器人填的陷阱欄位，真人看不到 -->
+        <div class="hp" aria-hidden="true">
+          <label for="f-website">網站</label>
+          <input id="f-website" name="website" type="text" tabindex="-1" autocomplete="off">
+        </div>
+
+        <p id="form-error" class="form-error" role="alert" hidden></p>
+        <button id="submit" class="btn btn-primary" type="submit">送出報名</button>
+        <p class="privacy">你填寫的手機號碼僅供主辦者聯絡本場活動使用（如集合、取消通知），不會公開或提供給他人。公開暱稱將顯示於本頁報名清單。手機號碼將於活動結束後一個月內刪除。送出即表示你同意以上說明。</p>
+      </form>
+
+      <div id="view-success" class="view success" hidden>
+        <div class="success-glow" aria-hidden="true">🔦</div>
+        <h2 id="success-title" class="card-h">報名成功！</h2>
+        <p id="success-text" class="success-text"></p>
+        <dl class="ticket">
+          <div><dt>暱稱</dt><dd id="ticket-nickname"></dd></div>
+          <div><dt>時間</dt><dd data-field="when">2026/10/23（五）19:00–21:00</dd></div>
+          <div><dt>集合</dt><dd data-field="place">捷運麟光站 1 號出口</dd></div>
+        </dl>
+        <div class="cal-buttons" data-cal></div>
+        <p class="screenshot-tip">📸 建議截圖本畫面。如需取消，請 LINE 或 Email 主辦。</p>
+        <button id="back-to-page" class="btn btn-ghost" type="button">回到活動頁</button>
+      </div>
+    </section>
+
+    <!-- 活動資訊 -->
+    <section class="card info" aria-labelledby="info-h">
+      <h2 id="info-h" class="eyebrow">活動資訊</h2>
+      <dl class="info-list">
+        <div><dt>時間</dt><dd data-field="when">2026/10/23（五）19:00–21:00</dd></div>
+        <div><dt>集合</dt><dd><span data-field="place">捷運麟光站 1 號出口</span> <a id="map-link" class="inline-link" href="https://www.google.com/maps/search/?api=1&amp;query=%E6%8D%B7%E9%81%8B%E9%BA%9F%E5%85%89%E7%AB%99%201%E8%99%9F%E5%87%BA%E5%8F%A3" target="_blank" rel="noopener">地圖 ↗</a></dd></div>
+        <div><dt>路線</dt><dd data-field="route">富陽自然生態公園</dd></div>
+        <div><dt>費用</dt><dd data-field="fee">免費</dd></div>
+        <div><dt>截止</dt><dd data-field="deadline">10/23（五）12:00</dd></div>
+      </dl>
+    </section>
+
+    <section class="card bring" aria-labelledby="bring-h">
+      <h2 id="bring-h" class="eyebrow">記得帶</h2>
+      <ul id="bring-list" class="bring-list">
+        <li>手電筒</li>
+        <li>長袖長褲</li>
+        <li>鞋子（建議雨鞋）</li>
+        <li>愉快的心情</li>
+      </ul>
+    </section>
+
+    <section class="card rain" aria-labelledby="rain-h">
+      <h2 id="rain-h" class="eyebrow">遇雨取消</h2>
+      <p data-field="rainRule">當天 15:00 台北市降雨機率 ≥ 70% 即取消，16:00 前於本頁公告。</p>
+    </section>
+
+    <section class="card contact" aria-labelledby="contact-h">
+      <h2 id="contact-h" class="eyebrow">聯絡主辦</h2>
+      <p class="muted">取消報名、問題都歡迎聯絡：</p>
+      <ul class="contact-list">
+        <li><span class="contact-k">LINE ID</span><span class="contact-v" data-field="contactLine">hemoparasite</span><button class="copy-btn" type="button" data-copy="contactLine">複製</button></li>
+        <li><span class="contact-k">Email</span><a class="contact-v" id="email-link" href="mailto:hemoparasite@gmail.com" data-field="contactEmail">hemoparasite@gmail.com</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>🌙 麟光夜行・夜間生態觀察</p>
+  </footer>
+</body>
+</html>
