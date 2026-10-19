@@ -357,7 +357,7 @@
     // iPhone 只接受網站上真的存在的 .ics 檔（event.ics，用 tools/make_ics.py 產生）。
     // 檔案的時間和試算表不一致時不顯示按鈕，避免加錯日期。
     const utc = t => new Date(Date.UTC(d.y, d.mo - 1, d.d, t.h - 8, t.mi)).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-    const icsMatches = icsInfo && icsInfo.start === utc(t1) && icsInfo.end === utc(t2);
+    const icsMatches = cfg.appleCalendar === true && icsInfo && icsInfo.start === utc(t1) && icsInfo.end === utc(t2);
     const buttons = [gBtn];
     if (icsMatches) {
       const iBtn = document.createElement('a');
@@ -552,7 +552,7 @@
   async function init() {
     bind();
     updateCounter();
-    loadIcsInfo();
+    if (cfg.appleCalendar === true) loadIcsInfo();
     if (MOCK) {
       await loadScript('mock-api.js');
       api = window.NightWalkMock(params.get('mock'));
