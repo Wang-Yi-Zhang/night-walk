@@ -350,12 +350,19 @@ a { color: inherit; }
 }
 .contact-row {
   display: grid;
-  grid-template-columns: 5.4em minmax(0, 1fr);
+  grid-template-columns: 4.6em minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   margin-bottom: 8px;
 }
 .contact-row label { margin: 0; font-size: 15px; }
+.contact-row input { padding-left: 10px; padding-right: 8px; }
+/* 讓「主頁 → 設定 → 個人檔案 → ID」在 360px 寬的手機上也放得下 */
+.contact-row input::placeholder { font-size: 13px; }
+@media (max-width: 370px) {
+  .contact-row { gap: 8px; }
+  .contact-row input::placeholder { font-size: 12px; }
+}
 .rec {
   display: block;
   width: fit-content;
