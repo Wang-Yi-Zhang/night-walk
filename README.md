@@ -82,7 +82,13 @@
 
 ## 三、修改程式後重新部署
 
-修改 `Code.gs` 後，要更新部署才會生效，而且**網址不會變**：
+修改 `Code.gs` 後，先在本機跑一次後端測試（需要 Node.js 22 以上，不用安裝任何套件），全部通過再部署：
+
+```bash
+node --test
+```
+
+要更新部署才會生效，而且**網址不會變**：
 
 **部署 → 管理部署作業 → ✏️ 編輯 → 版本選「新版本」→ 部署**
 
@@ -117,6 +123,7 @@
 | `index.html`、`style.css`、`app.js` | 報名網頁 |
 | `config.js` | Apps Script 網址 |
 | `apps-script/Code.gs` | 後端程式（複製到 Apps Script 用，GitHub Pages 不會執行它） |
+| `tests/` | 後端測試：在 Node 裡用假的 Google 服務載入 `Code.gs`，只透過對外介面驗證報名規則。在專案根目錄執行 `node --test` |
 | `mock-api.js` | 本機預覽用的假資料：網址加 `?mock`、`?mock=wait`、`?mock=full`、`?mock=rain`、`?mock=deadline`、`?mock=notice` |
 | `og.png` | LINE 分享預覽圖，用 `tools/make_og.py` 產生 |
 | `event.ics` | iPhone／Android「加入行事曆」用的檔案，用 `tools/make_ics.py` 產生。日期時間跟試算表不一致時，網頁會自動隱藏這顆按鈕 |
