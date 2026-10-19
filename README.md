@@ -63,6 +63,7 @@
 | **因雨取消／延期** | 「設定」分頁把「活動狀態」改成「因雨取消」或「延期」，「狀態補充說明」可以寫原因或新日期。網頁會出現橫幅並停止報名 |
 | 提早截止 | 「設定」分頁把「報名開關」改成「關」，或修改「報名截止」 |
 | 網頁人數沒更新 | 網頁最多會延遲 30 秒。急的話點選單 **🔦 夜行報名 → 立即更新網頁人數** |
+| 確認設定有沒有填錯 | 填錯的格子會變紅色，「設定」分頁最右邊的「**檢查**」欄會寫出原因。也可以點選單 **🔦 夜行報名 → 檢查設定** 一次列出所有問題 |
 
 > 「設定」分頁的日期請照格式填寫：`2026-10-23`、`19:00`、`2026-10-23 12:00`（台灣時間）。
 
@@ -71,7 +72,7 @@
 ### 辦下一場
 1. 在「設定」分頁修改：**場次代碼**（換一個新的，例如新日期）、場次標題、活動日期、時間、報名截止，並把活動狀態改回「正常舉行」、報名開關改回「開」。
 2. 網頁會自動切換成新場次，人數從 0 開始算。舊場次的報名紀錄會保留在「報名」分頁。
-3. **LINE 分享預覽圖、標題和行事曆檔是寫死在網站上的**（LINE 和 iPhone 不會讀取試算表），請 Claude 幫忙更新 `og.png`、`event.ics` 和 `index.html` 的 `og:` 標籤。
+3. **LINE 分享預覽圖、標題和行事曆檔是寫死在網站上的**（LINE 和 iPhone 不會讀取試算表）。改完試算表後，請 Claude 執行 `python tools/sync_event.py`，它會從試算表讀取活動資料，更新 `og.png`、`event.ics` 和 `index.html` 的分享文字。忘了的話，GitHub 每天早上 9 點的檢查會寄信提醒你。
 
 ### 個資清除（活動結束後一個月內）
 - **🔦 夜行報名 → 清除舊場次的聯絡資料**：清除目前場次以外所有場次的手機、LINE ID、IG 帳號。
@@ -129,8 +130,12 @@ npm test
 | `tests/` | 後端測試：在 Node 裡用假的 Google 服務載入 `Code.gs`，只透過對外介面驗證報名規則，並比對 `mock-api.js` 的規則是否一致。執行 `npm test` |
 | `package.json` | 只用來放測試指令 `npm test`，沒有任何套件依賴 |
 | `.github/workflows/test.yml` | 每次推上 GitHub 時自動跑測試 |
+| `.github/workflows/event-check.yml` | 每天台灣時間 09:00 比對試算表和預覽圖、行事曆檔，對不上時 GitHub 寄信通知 |
 | `mock-api.js` | 本機預覽用的假資料：網址加 `?mock`、`?mock=wait`、`?mock=full`、`?mock=rain`、`?mock=deadline`、`?mock=notice` |
-| `og.png` | LINE 分享預覽圖，用 `tools/make_og.py` 產生 |
-| `event.ics` | iPhone／Android「加入行事曆」用的檔案，用 `tools/make_ics.py` 產生。日期時間跟試算表不一致時，網頁會自動隱藏這顆按鈕。要關閉按鈕，把 `config.js` 的 `appleCalendar` 改成 `false` |
+| `tools/sync_event.py` | 從試算表的公開資料重新產生 `og.png`、`event.ics` 和 `index.html` 的分享文字；加 `--check` 只檢查是否過期 |
+| `og.png` | LINE 分享預覽圖（畫圖的程式在 `tools/make_og.py`） |
+| `event.ics` | iPhone／Android「加入行事曆」用的檔案（產生的程式在 `tools/make_ics.py`）。日期時間跟試算表不一致時，網頁會自動隱藏這顆按鈕。要關閉按鈕，把 `config.js` 的 `appleCalendar` 改成 `false` |
 | `CHECKLIST.md` | 改期或辦新場次時的確認表 |
 | `SPEC.md` | 規格書：使用者故事、報名規則、API 合約、測試決策、已知風險 |
+| `GLOSSARY.md` | 用語定義（場次、正取、候補優先、遞補……） |
+| `docs/adr/` | 設計決策紀錄：為什麼這樣做、考慮過哪些做法 |

@@ -6,6 +6,8 @@ iPhone 不接受網頁臨時產生的行事曆檔，必須是網站上真的存�
 
 用法（在 repo 根目錄執行）：
     python tools/make_ics.py --date 2026-10-26 --start 19:00 --end 21:00
+
+通常不用直接執行：tools/sync_event.py 會從試算表讀取活動資料，再呼叫這裡的 build()。
 """
 import argparse
 from datetime import datetime, timedelta, timezone
@@ -49,8 +51,14 @@ def main():
     ap.add_argument('--uid', default='', help='同一場活動固定不變；預設用日期')
     ap.add_argument('--out', default='event.ics')
     a = ap.parse_args()
+    with open(a.out, 'wb') as f:
+        f.write(build(a.date, a.start, a.end, a.title, a.place, a.route, a.bring, a.rain, a.url, a.uid or a.date))
+    print('saved', a.out)
 
-    details = '\n'.join(['本活動需事先報名，名額有限', f'集合：{a.place}', f'路線：{a.route}', f'記得帶：{a.bring}', a.rain, a.url])
+
+def build(date, start, end, title, place, route, bring, rain, url, uid):
+    """回傳 .ics 檔內容（bytes）。uid 同一場活動要固定不變，改期後重新匯入才會更新原本的活動。"""
+    details = '\n'.join(['本活動需事先報名，名額有限', f'集合：{place}', f'路線：{route}', f'記得帶：{bring}', rain, url])
     lines = [
         'BEGIN:VCALENDAR',
         'VERSION:2.0',
@@ -58,25 +66,23 @@ def main():
         'CALSCALE:GREGORIAN',
         'METHOD:PUBLISH',
         'BEGIN:VEVENT',
-        f'UID:night-walk-{a.uid or a.date}@wang-yi-zhang.github.io',
+        f'UID:night-walk-{uid}@wang-yi-zhang.github.io',
         'DTSTAMP:' + datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'),
-        'DTSTART:' + utc(a.date, a.start),
-        'DTEND:' + utc(a.date, a.end),
-        'SUMMARY:' + esc(a.title),
-        'LOCATION:' + esc(a.place),
+        'DTSTART:' + utc(date, start),
+        'DTEND:' + utc(date, end),
+        'SUMMARY:' + esc(title),
+        'LOCATION:' + esc(place),
         'DESCRIPTION:' + esc(details),
-        'URL:' + a.url,
+        'URL:' + url,
         'BEGIN:VALARM',
         'TRIGGER:-PT2H',
         'ACTION:DISPLAY',
-        'DESCRIPTION:' + esc(a.title),
+        'DESCRIPTION:' + esc(title),
         'END:VALARM',
         'END:VEVENT',
         'END:VCALENDAR',
     ]
-    with open(a.out, 'wb') as f:
-        f.write(b'\r\n'.join(fold(l) for l in lines) + b'\r\n')
-    print('saved', a.out)
+    return b'\r\n'.join(fold(l) for l in lines) + b'\r\n'
 
 
 if __name__ == '__main__':

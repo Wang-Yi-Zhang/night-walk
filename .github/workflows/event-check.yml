@@ -1,0 +1,15 @@
+name: 預覽圖與行事曆檔檢查
+
+# 每天比對試算表（Apps Script 公開資料）和網站上的 og.png、event.ics、index.html。
+# 改了日期卻忘了重新產生時，這個工作會失敗，GitHub 會寄信通知。
+on:
+  schedule:
+    - cron: '0 1 * * *' # 每天台灣時間 09:00
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/sync_event.py --check

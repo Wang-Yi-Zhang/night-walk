@@ -36,6 +36,9 @@ const STATUS_CONFIRMED = '正取';
 const STATUS_WAITLIST = '候補';
 const STATUS_CANCELLED = '取消';
 const EVENT_NORMAL = '正常舉行';
+const EVENT_STATUSES = [EVENT_NORMAL, '因雨取消', '延期'];
+const CHECK_HEADER = '檢查';
+const CHECK_COLOR = '#f8d7da';
 
 const CACHE_KEY = 'public-state-v1';
 const CACHE_SECONDS = 30;
@@ -296,12 +299,7 @@ function closedMessage_(reason) {
 // ── 讀取試算表 ──────────────────────────────────────────────────────
 
 function readSettings_() {
-  const values = sheet_(SETTINGS_SHEET).getDataRange().getDisplayValues();
-  const map = {};
-  values.slice(1).forEach(r => {
-    const key = String(r[0] || '').trim();
-    if (key) map[key] = String(r[1] == null ? '' : r[1]).trim();
-  });
+  const map = settingsMap_(sheet_(SETTINGS_SHEET).getDataRange().getDisplayValues());
   const get = key => (key in map ? map[key] : '');
   const deadlineText = get('報名截止');
   return {
@@ -327,6 +325,16 @@ function readSettings_() {
     contactEmail: get('聯絡Email'),
     contactLine: get('聯絡LINE ID'),
   };
+}
+
+/** 「設定」分頁的顯示值 → { 項目: 值 }。同一個項目出現兩次時，以最下面那一列為準。 */
+function settingsMap_(values) {
+  const map = {};
+  values.slice(1).forEach(r => {
+    const key = String(r[0] || '').trim();
+    if (key) map[key] = String(r[1] == null ? '' : r[1]).trim();
+  });
+  return map;
 }
 
 function readSignups_(eventId) {
@@ -454,6 +462,118 @@ function parseTaipeiDateTime_(text) {
   return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 8, +m[5]));
 }
 
+// ── 設定檢查 ────────────────────────────────────────────────────────
+
+/**
+ * 找出「設定」常見的填寫錯誤，回傳 { 項目: 說明 }。
+ * 只負責提醒，不改變讀取規則：填錯時程式照舊退回預設行為（例如截止時間解析不了就不截止）。
+ */
+function settingsWarnings_(map) {
+  const get = key => (key in map ? map[key] : '');
+  const w = {};
+  const switchOn = get('報名開關') === '開';
+  const date = parseYmd_(get('活動日期'));
+  const start = parseHm_(get('開始時間'));
+  const end = parseHm_(get('結束時間'));
+
+  if (!get('場次代碼') && switchOn) w['場次代碼'] = '報名開著，但還沒填場次代碼';
+
+  if (!get('活動日期')) {
+    if (switchOn) w['活動日期'] = '報名開著，但還沒填活動日期';
+  } else if (date === null) {
+    w['活動日期'] = '格式要像 2026-11-20，否則網頁的星期和加入行事曆會失效';
+  } else if (!date) {
+    w['活動日期'] = '沒有這一天，請確認日期';
+  }
+
+  if (!get('開始時間')) w['開始時間'] = '沒有開始時間，加入行事曆會失效';
+  else if (!start) w['開始時間'] = '格式要像 19:00（24 小時制），否則加入行事曆會失效';
+  if (get('結束時間') && !end) w['結束時間'] = '格式要像 21:00（24 小時制），否則加入行事曆會失效';
+  else if (start && end && end.minutes <= start.minutes) w['結束時間'] = '結束時間要晚於開始時間';
+
+  const deadlineText = get('報名截止');
+  if (deadlineText) {
+    const parts = deadlineText.match(/^(\S+)\s+(\S+)$/);
+    const day = parseYmd_(parts ? parts[1] : deadlineText);
+    const time = parts ? parseHm_(parts[2]) : null;
+    if (!parts && day !== null) w['報名截止'] = '少了時間，報名不會自動截止。請改成像 2026-11-20 12:00 的格式';
+    else if (day === null || !time) w['報名截止'] = '格式要像 2026-11-20 12:00，否則報名不會自動截止';
+    else if (!day) w['報名截止'] = '沒有這一天，請確認日期';
+    else if (date && start && Date.UTC(day.y, day.m - 1, day.d, 0, time.minutes) > Date.UTC(date.y, date.m - 1, date.d, 0, start.minutes)) {
+      w['報名截止'] = '截止時間晚於活動開始時間';
+    }
+  }
+
+  [['正取上限', 10], ['候補上限', 5]].forEach(([key, fallback]) => {
+    const v = get(key);
+    if (/^\d+$/.test(v)) return;
+    const n = parseInt(v, 10);
+    w[key] = n >= 0 ? '請只填數字，目前讀成 ' + n : '要填數字，目前退回預設值 ' + fallback;
+  });
+
+  if (get('報名開關') !== '開' && get('報名開關') !== '關') w['報名開關'] = '只能填「開」或「關」，目前視為「關」';
+  if (get('活動狀態') && EVENT_STATUSES.indexOf(get('活動狀態')) === -1) {
+    w['活動狀態'] = '不是下拉選單的選項，網頁會顯示紅色橫幅並停止報名';
+  }
+  if (get('地圖連結') && !/^https:\/\//.test(get('地圖連結'))) w['地圖連結'] = '要用 https:// 開頭，否則網頁不會顯示地圖連結';
+  if (get('聯絡Email') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(get('聯絡Email'))) w['聯絡Email'] = '看起來不是 Email 地址';
+  return w;
+}
+
+/** "YYYY-MM-DD"（也接受 /）→ { y, m, d }；格式不對回傳 null，格式對但沒有這一天回傳 false。 */
+function parseYmd_(text) {
+  const m = String(text || '').match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (!m) return null;
+  const y = +m[1], mo = +m[2], d = +m[3];
+  const t = new Date(Date.UTC(y, mo - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === d ? { y: y, m: mo, d: d } : false;
+}
+
+/** "HH:MM"（24 小時制）→ { minutes }；格式不對回傳 null。 */
+function parseHm_(text) {
+  const m = String(text || '').match(/^(\d{1,2}):(\d{2})$/);
+  return m && +m[1] < 24 && +m[2] < 60 ? { minutes: +m[1] * 60 + +m[2] } : null;
+}
+
+/**
+ * 檢查「設定」分頁：每一列的問題寫在「檢查」欄，值的儲存格標成紅色；沒問題的列清空。
+ * 回傳 [{ row, key, message }]，row 是試算表列號（缺少的項目沒有列號，row 為 0）。
+ */
+function checkSettings_() {
+  const sh = sheet_(SETTINGS_SHEET);
+  const values = sh.getDataRange().getDisplayValues();
+  const header = (values[0] || []).map(h => String(h).trim());
+  let checkCol = header.indexOf(CHECK_HEADER) + 1;
+  if (!checkCol) {
+    checkCol = Math.max(header.length, 3) + 1;
+    sh.getRange(1, checkCol).setValue(CHECK_HEADER);
+  }
+
+  const map = settingsMap_(values);
+  const warnings = settingsWarnings_(map);
+  const known = DEFAULT_SETTINGS.map(r => r[0]);
+  const keys = values.map(r => String(r[0] || '').trim());
+  const problems = [];
+  const notes = values.slice(1).map((r, i) => {
+    const key = keys[i + 1];
+    let message = '';
+    if (key && known.indexOf(key) === -1) message = '不認得這個項目名稱，程式不會讀取它';
+    else if (key && keys.lastIndexOf(key) !== i + 1) message = '重複的項目，程式只讀最下面那一列';
+    else if (key) message = warnings[key] || '';
+    if (message) problems.push({ row: i + 2, key: key, message: message });
+    return message;
+  });
+  known.forEach(key => {
+    if (!(key in map)) problems.push({ row: 0, key: key, message: '找不到這個項目，請從選單執行「初始化／補齊工作表」' });
+  });
+
+  if (notes.length) {
+    sh.getRange(2, checkCol, notes.length, 1).setValues(notes.map(n => [n ? '⚠️ ' + n : '']));
+    sh.getRange(2, 2, notes.length, 1).setBackgrounds(notes.map(n => [n ? CHECK_COLOR : null]));
+  }
+  return problems;
+}
+
 // ── 頻率限制與輸出 ──────────────────────────────────────────────────
 
 /** 全站每分鐘最多 RATE_LIMIT_PER_MINUTE 筆報名請求（在鎖內呼叫）。 */
@@ -481,20 +601,43 @@ function onOpen() {
     .createMenu('🔦 夜行報名')
     .addItem('初始化／補齊工作表', 'setup')
     .addItem('立即更新網頁人數', 'clearCache')
+    .addItem('檢查設定', 'checkSettings')
     .addSeparator()
     .addItem('清除舊場次的聯絡資料', 'clearOldContacts')
     .addItem('清除所有聯絡資料（含目前場次）', 'clearAllContacts')
     .addToUi();
 }
 
-/** 編輯試算表後讓網頁盡快反映（刪除整列不會觸發，最多延遲 30 秒）。 */
-function onEdit() {
+/**
+ * 編輯試算表後讓網頁盡快反映（刪除整列不會觸發，最多延遲 30 秒）。
+ * 編輯「設定」分頁時順便檢查格式；剛改的那一列有問題就跳出提示。
+ */
+function onEdit(e) {
   CacheService.getScriptCache().remove(CACHE_KEY);
+  try {
+    if (!e || !e.range || e.range.getSheet().getName() !== SETTINGS_SHEET) return;
+    const row = e.range.getRow();
+    const hit = checkSettings_().filter(p => p.row === row)[0];
+    if (hit) toast_('「' + hit.key + '」' + hit.message);
+  } catch (err) {
+    console.error('check settings failed', err);
+  }
 }
 
 function clearCache() {
   CacheService.getScriptCache().remove(CACHE_KEY);
   toast_('網頁人數已更新。');
+}
+
+function checkSettings() {
+  const problems = checkSettings_();
+  const ui = SpreadsheetApp.getUi();
+  if (!problems.length) {
+    ui.alert('檢查設定', '設定看起來沒有問題。', ui.ButtonSet.OK);
+    return;
+  }
+  const lines = problems.map(p => '・' + p.key + '：' + p.message);
+  ui.alert('檢查設定', '有 ' + problems.length + ' 個地方要確認（也標在「設定」分頁的「' + CHECK_HEADER + '」欄）：\n\n' + lines.join('\n'), ui.ButtonSet.OK);
 }
 
 /**
@@ -512,15 +655,19 @@ function setup() {
   DEFAULT_SETTINGS.forEach(([key, value, note]) => {
     if (existingKeys.indexOf(key) === -1) settings.appendRow([key, value, note]);
   });
+  const problems = checkSettings_();
+  const checkCol = headerRow_(settings).indexOf(CHECK_HEADER) + 1;
   settings.setFrozenRows(1);
-  settings.getRange(1, 1, 1, 3).setFontWeight('bold').setBackground('#1d2742').setFontColor('#ffffff');
+  settings.getRange(1, 1, 1, settings.getLastColumn()).setFontWeight('bold').setBackground('#1d2742').setFontColor('#ffffff');
   settings.setColumnWidth(1, 130);
   settings.setColumnWidth(2, 320);
   settings.setColumnWidth(3, 420);
+  settings.setColumnWidth(checkCol, 280);
+  settings.getRange(2, checkCol, settings.getMaxRows() - 1, 1).setWrap(true).setFontColor('#b3261e');
   settings.getRange('B:C').setWrap(true);
-  settings.getRange('A:C').setVerticalAlignment('top');
+  settings.getRange('A:D').setVerticalAlignment('top');
   setDropdown_(settings, '報名開關', ['開', '關']);
-  setDropdown_(settings, '活動狀態', [EVENT_NORMAL, '因雨取消', '延期']);
+  setDropdown_(settings, '活動狀態', EVENT_STATUSES);
 
   let signups = ss.getSheetByName(SIGNUP_SHEET);
   if (!signups) signups = ss.insertSheet(SIGNUP_SHEET, 1);
@@ -544,7 +691,7 @@ function setup() {
   if (sheet1 && sheet1.getLastRow() === 0 && ss.getSheets().length > 2) ss.deleteSheet(sheet1);
 
   CacheService.getScriptCache().remove(CACHE_KEY);
-  toast_('「設定」與「報名」分頁已就緒。');
+  toast_('「設定」與「報名」分頁已就緒。' + (problems.length ? '有 ' + problems.length + ' 項設定要確認，請看「' + CHECK_HEADER + '」欄。' : ''));
 }
 
 function setDropdown_(sheet, key, options) {

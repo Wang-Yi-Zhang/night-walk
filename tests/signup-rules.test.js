@@ -1,4 +1,4 @@
-// 報名規則：正取／候補／額滿、A-2、手動遞補、取消、判斷重複、換場次、自訂欄位。
+// 報名規則：正取／候補／額滿、候補優先、手動遞補、取消、判斷重複、換場次、自訂欄位。
 'use strict';
 
 const { test } = require('node:test');
@@ -40,7 +40,7 @@ test('正取 10 人額滿後轉候補，候補 5 人額滿後拒絕', () => {
   assert.strictEqual(h.rowOf('候11')['身分'], '候補');
 });
 
-test('A-2：只要有人在候補，正取空出名額時新報名仍進候補', () => {
+test('候補優先：只要有人在候補，正取空出名額時新報名仍進候補', () => {
   const h = freshEvent();
   signupRange(h, 1, 10);
   signupRange(h, 11, 12, '候');
@@ -56,7 +56,7 @@ test('A-2：只要有人在候補，正取空出名額時新報名仍進候補',
   assert.strictEqual(h.get().confirmed.length, 9, '不會自動遞補');
 });
 
-test('A-2：候補已滿時有人刪除整列，仍然額滿', () => {
+test('候補優先：候補已滿時有人刪除整列，仍然額滿', () => {
   const h = freshEvent();
   signupRange(h, 1, 10);
   signupRange(h, 11, 15, '候');

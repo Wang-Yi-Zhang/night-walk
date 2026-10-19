@@ -82,7 +82,7 @@ test('從空的開始報名：正取 10 人、候補 5 人、之後額滿，結�
   }
 });
 
-test('A-2：有人在候補時，正取有空位也進候補', async () => {
+test('候補優先：有人在候補時，正取有空位也進候補', async () => {
   const mock = loadMock('hold');
   const real = backendLike('hold', await mock.get());
   const b = body({ nickname: '新人', phone: phone(5000) });

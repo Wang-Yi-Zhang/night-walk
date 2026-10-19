@@ -1,6 +1,6 @@
 // 在 Node 裡載入 apps-script/Code.gs，用記憶體裡的假服務取代 Google 的
 // 試算表、快取、鎖、寄信和輸出服務。測試只透過對外介面操作：
-//   doGet、doPost、setup、clearOldContacts、clearAllContacts
+//   doGet、doPost、setup、checkSettings、clearOldContacts、clearAllContacts、onEdit
 // 再檢查回傳的 JSON，以及主辦者在試算表上看到的「顯示值」。
 //
 // 注意：Code.gs 跑在另一個 vm realm 裡，那邊產生的陣列跟這邊的 Array 不是同一個，
@@ -91,6 +91,17 @@ function makeSheet(name) {
               return rest;
             };
           }
+          if (k === 'setValues') {
+            return values => {
+              values.forEach((vals, i) => {
+                while (sh.data.length < row + i) sh.data.push([]);
+                const r = sh.data[row - 1 + i];
+                while (r.length < col - 1 + vals.length) r.push('');
+                vals.forEach((v, j) => { r[col - 1 + j] = v; });
+              });
+              return rest;
+            };
+          }
           if (k === 'getDisplayValues') {
             return () => sh.data.slice(row - 1, row - 1 + (numRows || 1))
               .map(r => Array.from({ length: numCols || 1 }, (_, i) => display(r[col - 1 + i])));
@@ -131,8 +142,9 @@ function loadBackend(options = {}) {
     getSheets: () => sheets,
     deleteSheet: s => { sheets.splice(sheets.indexOf(s), 1); },
     getUrl: () => 'https://docs.google.com/spreadsheets/d/TEST',
-    toast: () => {},
+    toast: msg => { toasts.push(String(msg)); },
   };
+  const toasts = [];
 
   const cacheStore = new Map(); // key → { value, expires }
   const cache = {
@@ -194,6 +206,9 @@ function loadBackend(options = {}) {
   const codePath = process.env.CODE_GS_PATH || DEFAULT_CODE_PATH;
   vm.runInContext(fs.readFileSync(codePath, 'utf8'), ctx, { filename: codePath });
 
+  /** 模擬主辦編輯某個分頁的第 row 列（觸發 onEdit 簡易觸發條件）。 */
+  const edit = (sheetName, row) => ctx.onEdit({ range: { getSheet: () => ({ getName: () => sheetName }), getRow: () => row } });
+
   const parse = out => {
     assert.strictEqual(out.mimeType, 'application/json');
     return JSON.parse(out.text);
@@ -221,6 +236,7 @@ function loadBackend(options = {}) {
     mail,
     ui,
     logs,
+    toasts,
     spreadsheet,
     sheets,
     sheet,
@@ -243,22 +259,34 @@ function loadBackend(options = {}) {
     },
     postRaw: contents => parse(ctx.doPost(contents === undefined ? undefined : { postData: { contents } })),
     setup: () => ctx.setup(),
+    checkSettings: () => ctx.checkSettings(),
     clearOldContacts: () => ctx.clearOldContacts(),
     clearAllContacts: () => ctx.clearAllContacts(),
 
     // ── 主辦者在試算表上的操作 ──
-    // 編輯儲存格會觸發 onEdit（清除快取）；刪除整列不會，跟真的試算表一樣。
+    // 編輯儲存格會觸發 onEdit（清除快取、檢查設定）；刪除整列不會，跟真的試算表一樣。
     setSetting: (key, value) => {
-      const r = sheet('設定').data.find(row => display(row[0]) === key);
-      assert.ok(r, '「設定」沒有「' + key + '」');
-      r[1] = value;
-      ctx.onEdit();
+      const data = sheet('設定').data;
+      const i = data.map(row => display(row[0])).lastIndexOf(key);
+      assert.ok(i > 0, '「設定」沒有「' + key + '」');
+      data[i][1] = value;
+      edit('設定', i + 1);
+    },
+    /** 「設定」分頁「檢查」欄的內容：{ 項目: 顯示值 }，只列出有內容的列。 */
+    checks: () => {
+      const data = sheet('設定').data;
+      const col = data[0].map(display).indexOf('檢查');
+      assert.ok(col >= 0, '「設定」沒有「檢查」欄');
+      const out = {};
+      data.slice(1).forEach(r => { if (display(r[col])) out[display(r[0])] = display(r[col]); });
+      return out;
     },
     editSignup: (nickname, field, value) => {
       const col = header().indexOf(field);
       assert.ok(col >= 0, '「報名」沒有「' + field + '」欄');
-      signupSheet().data[findIndex(nickname)][col] = value;
-      ctx.onEdit();
+      const i = findIndex(nickname);
+      signupSheet().data[i][col] = value;
+      edit('報名', i + 1);
     },
     deleteSignupRow: nickname => { signupSheet().data.splice(findIndex(nickname), 1); },
     advance: ms => { clock.now += ms; },
