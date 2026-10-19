@@ -153,8 +153,8 @@ test('同一個聯絡方式重複報名本場：跨欄位判斷，回傳 field',
 
 test('舊資料（試算表吃掉開頭 0、或含連字號）的手機也納入重複比對', () => {
   const h = freshEvent();
-  h.sheet('報名').appendRow([new Date(), "'2026-10-23", "'手打的", 912345678, '', '', '正取', '']);
-  h.sheet('報名').appendRow([new Date(), "'2026-10-23", "'手打的2", "'0922-333-444", '', '', '候補', '']);
+  h.sheet('報名').appendRow([new Date(), "'2026-11-06", "'手打的", 912345678, '', '', '正取', '']);
+  h.sheet('報名').appendRow([new Date(), "'2026-11-06", "'手打的2", "'0922-333-444", '', '', '候補', '']);
   assert.strictEqual(h.post({ nickname: '別人', phone: '0912345678' }).field, 'phone');
   assert.strictEqual(h.post({ nickname: '別人', phone: '0922333444' }).field, 'phone');
 });
@@ -186,9 +186,9 @@ test('換場次代碼後人數歸零，同一個聯絡方式可以報新場次',
   assert.strictEqual(r.ok, true, JSON.stringify(r));
   assert.strictEqual(r.status, '正取');
   assert.strictEqual(r.position, 1);
-  assert.strictEqual(h.rawOf('人5')['場次代碼'], "'2026-10-23", '舊場次的那一列不變');
+  assert.strictEqual(h.rawOf('人5')['場次代碼'], "'2026-11-06", '舊場次的那一列不變');
   const rows = h.rows().filter(x => x['暱稱'] === '人5');
-  eq(rows.map(x => x['場次代碼']), ['2026-10-23', '2026-11-20']);
+  eq(rows.map(x => x['場次代碼']), ['2026-11-06', '2026-11-20']);
   st = h.get();
   eq(st.confirmed, ['人5']);
 });
@@ -207,7 +207,7 @@ test('主辦調整欄位順序、插入自己的欄位後，讀寫仍然正確',
   assert.strictEqual(r.position, 2);
   const row = h.rowOf('備註後');
   assert.strictEqual(row['主辦備註'], '');
-  assert.strictEqual(row['場次代碼'], '2026-10-23');
+  assert.strictEqual(row['場次代碼'], '2026-11-06');
   assert.strictEqual(row['LINE ID'], 'after_note');
   assert.strictEqual(row['身分'], '正取');
   assert.strictEqual(row['給主辦的話'], '你好');

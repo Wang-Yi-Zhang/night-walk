@@ -65,6 +65,7 @@ test('判斷順序：活動狀態 → 報名開關 → 截止時間 → 額滿',
 test('截止時間以台灣時間計算：12:00 前一刻可以報名，12:00 整截止', () => {
   // 2026-10-23 12:00 台灣時間 = 2026-10-23 04:00 UTC
   const h = freshEvent({ now: Date.UTC(2026, 9, 23, 3, 59, 59, 999), tickMs: 0 });
+  h.setSetting('報名截止', '2026-10-23 12:00');
   assert.strictEqual(h.get().registration.open, true);
   const r = h.post({ nickname: '壓線', phone: phone(1) });
   assert.strictEqual(r.ok, true, JSON.stringify(r));

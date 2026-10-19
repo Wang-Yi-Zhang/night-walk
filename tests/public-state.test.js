@@ -5,17 +5,18 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { freshEvent, eq, DEFAULT_NOW } = require('./fake-apps-script');
 
-test('預設設定的公開狀態', () => {
+test('測試活動的公開狀態', () => {
   const h = freshEvent();
   const st = h.get();
   assert.strictEqual(st.ok, true);
-  assert.strictEqual(st.event.id, '2026-10-23');
+  assert.strictEqual(st.event.id, '2026-11-06');
+  assert.strictEqual(st.event.title, '測試場');
   assert.strictEqual(st.event.name, '麟光夜行・富陽生態公園');
-  assert.strictEqual(st.event.date, '2026-10-23');
+  assert.strictEqual(st.event.date, '2026-11-06');
   assert.strictEqual(st.event.start, '19:00');
   assert.strictEqual(st.event.end, '21:00');
   assert.strictEqual(st.event.status, '正常舉行');
-  assert.strictEqual(st.event.deadline, '2026-10-23 12:00');
+  assert.strictEqual(st.event.deadline, '2026-11-06 12:00');
   assert.ok(st.event.mapUrl.startsWith('https://'));
   eq(st.event.bring, ['手電筒', '長袖長褲', '鞋子（建議雨鞋）', '愉快的心情']);
   assert.strictEqual(st.capacity, 10);
@@ -64,7 +65,7 @@ test('只計入目前場次、身分為正取或候補、而且有暱稱的列',
   h.post({ nickname: '丙', phone: '0900000003' });
   h.editSignup('乙', '身分', '取消');
   h.editSignup('丙', '場次代碼', "'2026-09-01");
-  h.sheet('報名').appendRow(['', "'2026-10-23", '', '', '', '', '正取', '']); // 沒有暱稱的空白列
+  h.sheet('報名').appendRow(['', "'2026-11-06", '', '', '', '', '正取', '']); // 沒有暱稱的空白列
   const st = h.get();
   eq(st.confirmed, ['甲']);
   eq(st.waitlist, []);

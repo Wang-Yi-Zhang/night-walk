@@ -15,6 +15,20 @@ test('從空白試算表初始化：建立「設定」「報名」，移除空�
   assert.ok(keys.includes('場次代碼') && keys.includes('報名截止') && keys.includes('聯絡LINE ID'));
 });
 
+test('全新試算表初始化後不開放報名：跟場次有關的設定留空，報名開關是「關」', () => {
+  const h = loadBackend();
+  h.setup();
+  const setting = key => h.sheet('設定').data.find(r => r[0] === key)[1];
+  ['場次代碼', '場次標題', '活動日期', '報名截止'].forEach(key => assert.strictEqual(setting(key), '', key));
+  assert.strictEqual(setting('報名開關'), '關');
+
+  const st = h.get();
+  eq(st.registration, { open: false, mode: null, reason: 'closed' });
+  const r = h.post({ nickname: '太早', phone: '0912345678' });
+  assert.strictEqual(r.error, 'closed');
+  assert.strictEqual(h.rows().length, 0);
+});
+
 test('重複初始化不會產生重複的設定或欄位，也不覆蓋主辦改過的設定值', () => {
   const h = freshEvent();
   h.setSetting('正取上限', '12');
@@ -76,7 +90,7 @@ test('舊版 6 欄試算表沒先初始化，第一筆新報名也會自動補�
   const h = freshEvent();
   h.sheet('報名').data = [
     ['報名時間', '場次代碼', '暱稱', '手機', '身分', '給主辦的話'],
-    [new Date(), "'2026-10-23", "'老朋友", "'0911111111", '正取', ''],
+    [new Date(), "'2026-11-06", "'老朋友", "'0911111111", '正取', ''],
   ];
   const r = h.post({ nickname: '新朋友', line: 'new_friend' });
   assert.strictEqual(r.ok, true, JSON.stringify(r));

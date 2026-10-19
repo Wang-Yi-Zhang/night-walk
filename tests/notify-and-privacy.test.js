@@ -15,7 +15,7 @@ test('通知信只寄給固定收件人，內容含三種聯絡方式，沒填�
   assert.ok(m.subject.includes('螢火蟲'), m.subject);
   assert.ok(m.subject.includes('正取 1/10'), m.subject);
   ['暱稱：螢火蟲', '手機：（未填）', 'LINE ID：frog.king_1', 'IG 帳號：（未填）', '給主辦的話：第一次參加',
-    '目前正取 1/10，候補 0/5', '場次：2026-10-23 第 1 場', 'https://docs.google.com/spreadsheets/d/TEST']
+    '目前正取 1/10，候補 0/5', '場次：2026-11-06 測試場', 'https://docs.google.com/spreadsheets/d/TEST']
     .forEach(s => assert.ok(m.body.includes(s), '信件缺少「' + s + '」：\n' + m.body));
 });
 

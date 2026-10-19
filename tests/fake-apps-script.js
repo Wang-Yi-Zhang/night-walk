@@ -15,8 +15,23 @@ const assert = require('node:assert');
 // 突變檢查時設定 CODE_GS_PATH 指向改壞的複本，repo 裡的 Code.gs 保持不動
 const DEFAULT_CODE_PATH = path.join(__dirname, '..', 'apps-script', 'Code.gs');
 
-/** 預設時間：2026-10-20 08:00 台灣時間，在預設截止時間（2026-10-23 12:00）之前。 */
-const DEFAULT_NOW = Date.UTC(2026, 9, 20, 0, 0);
+/**
+ * freshEvent() 的測試活動。跟 Code.gs 的預設值無關：預設值是「全新試算表長什麼樣」，
+ * 由 setup.test.js 驗證；報名規則的測試一律在這場活動上跑。
+ */
+const TEST_EVENT = {
+  '場次代碼': '2026-11-06',
+  '場次標題': '測試場',
+  '活動日期': '2026-11-06',
+  '報名截止': '2026-11-06 12:00',
+  '報名開關': '開',
+  '活動狀態': '正常舉行',
+  '正取上限': '10',
+  '候補上限': '5',
+};
+
+/** 預設時間：2026-11-01 08:00 台灣時間，在測試活動的截止時間之前。 */
+const DEFAULT_NOW = Date.UTC(2026, 10, 1, 0, 0);
 
 const HEADERS = ['報名時間', '場次代碼', '暱稱', '手機', 'LINE ID', 'IG 帳號', '身分', '給主辦的話'];
 
@@ -251,11 +266,12 @@ function loadBackend(options = {}) {
   return h;
 }
 
-/** 從空白試算表初始化好的一場活動（預設設定：正取 10、候補 5、截止 2026-10-23 12:00）。 */
+/** 從空白試算表初始化，再由主辦填好 TEST_EVENT 的一場活動（正取 10、候補 5、截止 2026-11-06 12:00）。 */
 function freshEvent(options) {
   const h = loadBackend(options);
   h.setup();
+  Object.keys(TEST_EVENT).forEach(key => h.setSetting(key, TEST_EVENT[key]));
   return h;
 }
 
-module.exports = { loadBackend, freshEvent, eq, phone, display, HEADERS, DEFAULT_NOW };
+module.exports = { loadBackend, freshEvent, eq, phone, display, HEADERS, DEFAULT_NOW, TEST_EVENT };

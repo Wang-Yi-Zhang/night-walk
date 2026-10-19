@@ -139,7 +139,7 @@ test('使用者輸入一律以 \' 前綴存成純文字：防公式注入、保�
   assert.strictEqual(raw['手機'], "'0912345678");
   assert.strictEqual(raw['LINE ID'], "'formula_ok");
   assert.strictEqual(raw['給主辦的話'], "'+SUM(1)");
-  assert.strictEqual(raw['場次代碼'], "'2026-10-23");
+  assert.strictEqual(raw['場次代碼'], "'2026-11-06");
   assert.strictEqual(raw['IG 帳號'], '', '空的欄位維持空白，不加前綴');
   assert.strictEqual(raw['身分'], '正取');
 });
