@@ -121,3 +121,4 @@
 | `og.png` | LINE 分享預覽圖，用 `tools/make_og.py` 產生 |
 | `event.ics` | iPhone／Android「加入行事曆」用的檔案，用 `tools/make_ics.py` 產生。日期時間跟試算表不一致時，網頁會自動隱藏這顆按鈕 |
 | `CHECKLIST.md` | 改期或辦新場次時的確認表 |
+| `SPEC.md` | 規格書：使用者故事、報名規則、API 合約、測試決策、已知風險 |
