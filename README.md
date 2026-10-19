@@ -66,7 +66,7 @@
 ### 辦下一場
 1. 在「設定」分頁修改：**場次代碼**（換一個新的，例如新日期）、場次標題、活動日期、時間、報名截止，並把活動狀態改回「正常舉行」、報名開關改回「開」。
 2. 網頁會自動切換成新場次，人數從 0 開始算。舊場次的報名紀錄會保留在「報名」分頁。
-3. **LINE 分享預覽圖和標題是寫死在網頁裡的**（LINE 不會讀取試算表），請 Claude 幫忙更新 `og.png` 和 `index.html` 的 `og:` 標籤。
+3. **LINE 分享預覽圖、標題和行事曆檔是寫死在網站上的**（LINE 和 iPhone 不會讀取試算表），請 Claude 幫忙更新 `og.png`、`event.ics` 和 `index.html` 的 `og:` 標籤。
 
 ### 個資清除（活動結束後一個月內）
 - **🔦 夜行報名 → 清除舊場次的手機號碼**：清除目前場次以外所有場次的手機號碼。
@@ -113,4 +113,5 @@
 | `apps-script/Code.gs` | 後端程式（複製到 Apps Script 用，GitHub Pages 不會執行它） |
 | `mock-api.js` | 本機預覽用的假資料：網址加 `?mock`、`?mock=wait`、`?mock=full`、`?mock=rain`、`?mock=deadline`、`?mock=notice` |
 | `og.png` | LINE 分享預覽圖，用 `tools/make_og.py` 產生 |
+| `event.ics` | iPhone／Android「加入行事曆」用的檔案，用 `tools/make_ics.py` 產生。日期時間跟試算表不一致時，網頁會自動隱藏這顆按鈕 |
 | `CHECKLIST.md` | 改期或辦新場次時的確認表 |

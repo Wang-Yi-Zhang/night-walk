@@ -8,6 +8,7 @@
   const MSG_MAX = 200;
   const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
   const REFRESH_MS = 60000;
+  const ICS_PATH = 'event.ics';
 
   const $ = id => document.getElementById(id);
 
@@ -18,6 +19,7 @@
   let success = null;
   let forceForm = false;
   let submitting = false;
+  let icsInfo = null; // event.ics 的開始／結束時間（UTC），讀不到就是 null
 
   // ── API ──────────────────────────────────────────
 
@@ -345,29 +347,6 @@
     g.searchParams.set('location', ev.place);
     g.searchParams.set('details', details);
 
-    const utc = t => new Date(Date.UTC(d.y, d.mo - 1, d.d, t.h - 8, t.mi)).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-    const esc = v => String(v).replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1');
-    const ics = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//night-walk//zh-TW',
-      'BEGIN:VEVENT',
-      'UID:' + ev.id + '@night-walk',
-      'DTSTAMP:' + new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''),
-      'DTSTART:' + utc(t1),
-      'DTEND:' + utc(t2),
-      'SUMMARY:' + esc(title),
-      'LOCATION:' + esc(ev.place),
-      'DESCRIPTION:' + esc(details),
-      'BEGIN:VALARM',
-      'TRIGGER:-PT2H',
-      'ACTION:DISPLAY',
-      'DESCRIPTION:' + esc(title),
-      'END:VALARM',
-      'END:VEVENT',
-      'END:VCALENDAR',
-    ].join('\r\n');
-
     const gBtn = document.createElement('a');
     gBtn.className = 'btn btn-ghost btn-small';
     gBtn.href = g.toString();
@@ -375,17 +354,21 @@
     gBtn.rel = 'noopener';
     gBtn.textContent = '📅 Google 日曆';
 
-    const iBtn = document.createElement('a');
-    iBtn.className = 'btn btn-ghost btn-small';
-    iBtn.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
-    iBtn.download = 'night-walk-' + ev.id + '.ics';
-    iBtn.textContent = '🗓 Apple／其他';
-
-    const tip = document.createElement('p');
-    tip.className = 'cal-tip';
-    tip.textContent = '在 LINE 裡加不進去？點右上角選單，改用預設瀏覽器開啟本頁。';
-
-    container.replaceChildren(gBtn, iBtn, tip);
+    // iPhone 只接受網站上真的存在的 .ics 檔（event.ics，用 tools/make_ics.py 產生）。
+    // 檔案的時間和試算表不一致時不顯示按鈕，避免加錯日期。
+    const utc = t => new Date(Date.UTC(d.y, d.mo - 1, d.d, t.h - 8, t.mi)).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const icsMatches = icsInfo && icsInfo.start === utc(t1) && icsInfo.end === utc(t2);
+    const buttons = [gBtn];
+    if (icsMatches) {
+      const iBtn = document.createElement('a');
+      iBtn.className = 'btn btn-ghost btn-small';
+      // openExternalBrowser=1：在 LINE 裡點擊時改用 Safari／Chrome 開啟，行事曆才加得進去
+      iBtn.href = new URL(ICS_PATH + '?openExternalBrowser=1', location.href).toString();
+      iBtn.textContent = '🗓 Apple／其他';
+      buttons.push(iBtn);
+    }
+    container.classList.toggle('single', buttons.length === 1);
+    container.replaceChildren(...buttons);
   }
 
   // ── 表單 ─────────────────────────────────────────
@@ -465,6 +448,23 @@
     }
   }
 
+  // ── 讀取 event.ics 的時間，用來判斷要不要顯示「Apple／其他」按鈕 ──
+
+  async function loadIcsInfo() {
+    try {
+      const res = await fetch(ICS_PATH, { cache: 'no-cache' });
+      if (!res.ok) return;
+      const text = (await res.text()).replace(/\r\n[ \t]/g, '');
+      const start = /^DTSTART:(\d{8}T\d{6}Z)\s*$/m.exec(text);
+      const end = /^DTEND:(\d{8}T\d{6}Z)\s*$/m.exec(text);
+      if (!start || !end) return;
+      icsInfo = { start: start[1], end: end[1] };
+      if (state) renderSignup(state);
+    } catch (err) {
+      /* 讀不到就只顯示 Google 日曆 */
+    }
+  }
+
   // ── 載入 ─────────────────────────────────────────
 
   async function refresh() {
@@ -529,6 +529,7 @@
   async function init() {
     bind();
     updateCounter();
+    loadIcsInfo();
     if (MOCK) {
       await loadScript('mock-api.js');
       api = window.NightWalkMock(params.get('mock'));

@@ -505,7 +505,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
   margin-top: 14px;
 }
 .cal-buttons .btn { width: 100%; }
-.cal-tip { grid-column: 1 / -1; margin: 0; font-size: 12px; color: var(--muted); text-align: left; }
+.cal-buttons.single { grid-template-columns: 1fr; }
 
 .screenshot-tip {
   margin: 16px 0;
