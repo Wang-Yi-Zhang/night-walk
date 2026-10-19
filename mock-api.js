@@ -27,7 +27,7 @@ window.NightWalkMock = function (scenario) {
 
   const names = ['青蛙王子', '阿螢', 'Moth', '小鴞', '夜貓子', '蟬蛻收藏家', '樹蛙控', '小明', '竹節蟲', 'Amy', '蝸牛慢慢', '黑眶蟾蜍', '螳螂', '蜘蛛人', '月光'];
   const rows = [];
-  const seed = (n, status) => { for (let i = 0; i < n; i++) rows.push({ nickname: names[rows.length], phone: '09000000' + String(rows.length).padStart(2, '0'), status }); };
+  const seed = (n, status) => { for (let i = 0; i < n; i++) rows.push({ nickname: names[rows.length], phone: '09000000' + String(rows.length).padStart(2, '0'), line: 'mock_line_' + rows.length, ig: '', status }); };
 
   switch (scenario) {
     case 'empty': break;
@@ -75,15 +75,23 @@ window.NightWalkMock = function (scenario) {
       await delay(700);
       if (body.website) return { ok: false, error: 'invalid', message: '送出失敗，請重新整理頁面再試一次。' };
       const nickname = String(body.nickname || '').replace(/\s+/g, ' ').trim();
-      const phone = String(body.phone || '');
+      const contact = { phone: String(body.phone || ''), line: String(body.line || ''), ig: String(body.ig || '') };
       const len = Array.from(nickname).length;
       if (len < 1 || len > 12) return { ok: false, error: 'nickname', message: '暱稱請填 1–12 個字。' };
-      if (!/^09\d{8}$/.test(phone)) return { ok: false, error: 'phone', message: '手機號碼格式不正確，請填 09 開頭的 10 碼數字。' };
-      if (rows.some(r => r.phone === phone)) return { ok: false, error: 'duplicate', message: '這支手機已經報名過本場囉！如需修改或取消，請聯絡主辦。' };
+      if (!contact.phone && !contact.line && !contact.ig) return { ok: false, error: 'contact', message: '請至少填一種聯絡方式（手機、LINE ID 或 IG 帳號）。' };
+      if (contact.phone && !/^09\d{8}$/.test(contact.phone)) return { ok: false, error: 'phone', message: '手機號碼格式不正確，請填 09 開頭的 10 碼數字。' };
+      if (contact.line && !/^[a-z0-9._-]{4,20}$/.test(contact.line)) return { ok: false, error: 'line', message: '這看起來不是 LINE ID。' };
+      if (contact.ig && !/^[a-z0-9._]{1,30}$/.test(contact.ig)) return { ok: false, error: 'ig', message: 'IG 帳號只能有英文、數字、句點和底線。' };
+      const labels = { phone: '這支手機', line: '這個 LINE ID ', ig: '這個 IG 帳號' };
+      for (const key of ['phone', 'line', 'ig']) {
+        if (contact[key] && rows.some(r => r[key] === contact[key])) {
+          return { ok: false, error: 'duplicate', field: key, message: labels[key] + '已經報名過本場囉！如需修改或取消，請聯絡主辦。' };
+        }
+      }
       const reg = registration();
       if (!reg.open) return { ok: false, error: reg.reason, message: '目前無法報名。' };
       const position = count(reg.mode) + 1;
-      rows.push({ nickname, phone, status: reg.mode });
+      rows.push(Object.assign({ nickname, status: reg.mode }, contact));
       return { ok: true, status: reg.mode, position, nickname, capacity };
     },
   };

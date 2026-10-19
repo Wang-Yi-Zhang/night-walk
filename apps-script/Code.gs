@@ -1,8 +1,8 @@
 /**
- * 麟光夜行報名系統 \u2014 Google Apps Script 後端
+ * 麟光夜行報名系統：Google Apps Script 後端
  *
  * 綁定在報名用的 Google 試算表上，部署成「網頁應用程式」後：
- *   GET  → 回傳公開資訊（活動設定、人數、暱稱清單），永遠不含手機號碼
+ *   GET  → 回傳公開資訊（活動設定、人數、暱稱清單），永遠不含聯絡資料（手機、LINE ID、IG）
  *   POST → 新增一筆報名
  *
  * 權限刻意壓到最小：
@@ -17,8 +17,20 @@ const NOTIFY_EMAIL = 'hemoparasite@gmail.com';
 
 const SETTINGS_SHEET = '設定';
 const SIGNUP_SHEET = '報名';
-const SIGNUP_HEADERS = ['報名時間', '場次代碼', '暱稱', '手機', '身分', '給主辦的話'];
-const COL = { time: 0, event: 1, nickname: 2, phone: 3, status: 4, message: 5 };
+// 「報名」分頁的欄位。程式依標題文字找欄位，主辦可以調整順序或插入自己的欄位
+const FIELD = {
+  time: '報名時間',
+  event: '場次代碼',
+  nickname: '暱稱',
+  phone: '手機',
+  line: 'LINE ID',
+  ig: 'IG 帳號',
+  status: '身分',
+  message: '給主辦的話',
+};
+const SIGNUP_HEADERS = [FIELD.time, FIELD.event, FIELD.nickname, FIELD.phone, FIELD.line, FIELD.ig, FIELD.status, FIELD.message];
+const CONTACT_KEYS = ['phone', 'line', 'ig'];
+const DELETED = '（已刪除）';
 
 const STATUS_CONFIRMED = '正取';
 const STATUS_WAITLIST = '候補';
@@ -91,14 +103,29 @@ function handleSignup_(body) {
   if (body.website) return fail_('invalid', '送出失敗，請重新整理頁面再試一次。');
 
   const nickname = normalizeNickname_(body.nickname);
-  const phone = normalizePhone_(body.phone);
+  const contact = {
+    phone: normalizePhone_(body.phone),
+    line: normalizeLineId_(body.line),
+    ig: normalizeIg_(body.ig),
+  };
   const message = normalizeMessage_(body.message);
 
   const nicknameLength = Array.from(nickname).length;
   if (nicknameLength < 1 || nicknameLength > NICKNAME_MAX) {
     return fail_('nickname', '暱稱請填 1\u2013' + NICKNAME_MAX + ' 個字。');
   }
-  if (!/^09\d{8}$/.test(phone)) return fail_('phone', '手機號碼格式不正確，請填 09 開頭的 10 碼數字。');
+  if (!contact.phone && !contact.line && !contact.ig) {
+    return fail_('contact', '請至少填一種聯絡方式（手機、LINE ID 或 IG 帳號）。');
+  }
+  if (contact.phone && !/^09\d{8}$/.test(contact.phone)) {
+    return fail_('phone', '手機號碼格式不正確，請填 09 開頭的 10 碼數字。');
+  }
+  if (contact.line && !/^[a-z0-9._-]{4,20}$/.test(contact.line)) {
+    return fail_('line', '這看起來不是 LINE ID。LINE ID 不是顯示名稱，可以到 LINE「主頁 → 設定 → 個人檔案 → ID」查看。');
+  }
+  if (contact.ig && !/^[a-z0-9._]{1,30}$/.test(contact.ig)) {
+    return fail_('ig', 'IG 帳號只能有英文、數字、句點和底線。');
+  }
   if (Array.from(message).length > MESSAGE_MAX) return fail_('message', '給主辦的話請在 ' + MESSAGE_MAX + ' 字以內。');
 
   const lock = LockService.getScriptLock();
@@ -110,12 +137,18 @@ function handleSignup_(body) {
   try {
     if (isRateLimited_()) return fail_('busy', '目前報名人數較多，請稍等一分鐘再送出。');
 
+    const sheet = sheet_(SIGNUP_SHEET);
+    ensureSignupColumns_(sheet);
     settings = readSettings_();
     const rows = readSignups_(settings.eventId);
     const active = rows.filter(r => r.status === STATUS_CONFIRMED || r.status === STATUS_WAITLIST);
 
-    if (active.some(r => normalizePhone_(r.phone) === phone)) {
-      return fail_('duplicate', '這支手機已經報名過本場囉！如需修改或取消，請聯絡主辦。');
+    const dupKey = findDuplicateContact_(active, contact);
+    if (dupKey) {
+      const label = { phone: '這支手機', line: '這個 LINE ID ', ig: '這個 IG 帳號' }[dupKey];
+      const res = fail_('duplicate', label + '已經報名過本場囉！如需修改或取消，請聯絡主辦。');
+      res.field = dupKey;
+      return res;
     }
 
     const nConfirmed = rows.filter(r => r.status === STATUS_CONFIRMED).length;
@@ -126,15 +159,17 @@ function handleSignup_(body) {
     const status = reg.mode;
     const position = status === STATUS_CONFIRMED ? nConfirmed + 1 : nWaitlist + 1;
 
-    // 一律加上 ' 前綴：存成純文字，避免公式注入，也保住手機開頭的 0
-    sheet_(SIGNUP_SHEET).appendRow([
-      new Date(),
-      asText_(settings.eventId),
-      asText_(nickname),
-      asText_(phone),
-      status,
-      message ? asText_(message) : '',
-    ]);
+    // 使用者輸入一律加上 ' 前綴：存成純文字，避免公式注入，也保住手機開頭的 0
+    appendSignup_(sheet, {
+      time: new Date(),
+      event: asText_(settings.eventId),
+      nickname: asText_(nickname),
+      phone: contact.phone ? asText_(contact.phone) : '',
+      line: contact.line ? asText_(contact.line) : '',
+      ig: contact.ig ? asText_(contact.ig) : '',
+      status: status,
+      message: message ? asText_(message) : '',
+    });
     SpreadsheetApp.flush();
     CacheService.getScriptCache().remove(CACHE_KEY);
 
@@ -147,11 +182,21 @@ function handleSignup_(body) {
     lock.releaseLock();
   }
 
-  notifyOrganizer_(settings, result, phone, message, counts);
+  notifyOrganizer_(settings, result, contact, message, counts);
   return result;
 }
 
-function notifyOrganizer_(settings, result, phone, message, counts) {
+/** 任何一種聯絡方式跟本場已報名的人相同，就回傳那一種（phone／line／ig），否則回傳 null。 */
+function findDuplicateContact_(rows, contact) {
+  const normalize = { phone: normalizePhone_, line: normalizeLineId_, ig: normalizeIg_ };
+  for (const key of CONTACT_KEYS) {
+    if (!contact[key]) continue;
+    if (rows.some(r => r[key] && normalize[key](r[key]) === contact[key])) return key;
+  }
+  return null;
+}
+
+function notifyOrganizer_(settings, result, contact, message, counts) {
   try {
     const rank = result.status === STATUS_CONFIRMED
       ? '正取 ' + result.position + '/' + settings.capacity
@@ -159,7 +204,9 @@ function notifyOrganizer_(settings, result, phone, message, counts) {
     const subject = '【' + settings.name + '】新報名：' + result.nickname + '（' + rank + '）';
     const body = [
       '暱稱：' + result.nickname,
-      '手機：' + phone,
+      '手機：' + (contact.phone || '（未填）'),
+      'LINE ID：' + (contact.line || '（未填）'),
+      'IG 帳號：' + (contact.ig || '（未填）'),
       '身分：' + rank,
       '給主辦的話：' + (message || '（無）'),
       '',
@@ -282,13 +329,66 @@ function readSettings_() {
 
 function readSignups_(eventId) {
   const values = sheet_(SIGNUP_SHEET).getDataRange().getDisplayValues();
+  const col = columnIndex_(values[0] || []);
+  const cell = (r, key) => (col[key] >= 0 ? String(r[col[key]] == null ? '' : r[col[key]]).trim() : '');
   return values.slice(1)
-    .filter(r => String(r[COL.event]).trim() === eventId && String(r[COL.nickname]).trim())
+    .filter(r => cell(r, 'event') === eventId && cell(r, 'nickname'))
     .map(r => ({
-      nickname: String(r[COL.nickname]).trim(),
-      phone: String(r[COL.phone]).trim(),
-      status: String(r[COL.status]).trim(),
+      nickname: cell(r, 'nickname'),
+      phone: cell(r, 'phone'),
+      line: cell(r, 'line'),
+      ig: cell(r, 'ig'),
+      status: cell(r, 'status'),
     }));
+}
+
+/** 標題列 → { event: 1, phone: 3, ... }（0 起算），找不到的欄位是 -1。 */
+function columnIndex_(headerRow) {
+  const headers = headerRow.map(h => String(h == null ? '' : h).trim());
+  const col = {};
+  Object.keys(FIELD).forEach(key => { col[key] = headers.indexOf(FIELD[key]); });
+  return col;
+}
+
+function headerRow_(sheet) {
+  const lastCol = sheet.getLastColumn();
+  if (lastCol === 0) return [];
+  return sheet.getRange(1, 1, 1, lastCol).getDisplayValues()[0].map(h => String(h).trim());
+}
+
+/**
+ * 補上缺少的欄位：插在 SIGNUP_HEADERS 裡前一個欄位的右邊（例如 LINE ID 插在手機後面），
+ * 既有資料整欄往右移，不會錯位。
+ */
+function ensureSignupColumns_(sheet) {
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(SIGNUP_HEADERS);
+    return;
+  }
+  SIGNUP_HEADERS.forEach((header, i) => {
+    const headers = headerRow_(sheet);
+    if (headers.indexOf(header) !== -1) return;
+    const prev = i === 0 ? -1 : headers.indexOf(SIGNUP_HEADERS[i - 1]);
+    if (i === 0) {
+      sheet.insertColumnBefore(1);
+      sheet.getRange(1, 1).setValue(header);
+    } else if (prev === -1) {
+      sheet.getRange(1, headers.length + 1).setValue(header);
+    } else {
+      sheet.insertColumnAfter(prev + 1);
+      sheet.getRange(1, prev + 2).setValue(header);
+    }
+  });
+}
+
+function appendSignup_(sheet, data) {
+  const col = columnIndex_(headerRow_(sheet));
+  const width = Math.max.apply(null, Object.keys(col).map(k => col[k])) + 1;
+  const row = new Array(width).fill('');
+  Object.keys(data).forEach(key => {
+    if (col[key] >= 0) row[col[key]] = data[key];
+  });
+  sheet.appendRow(row);
 }
 
 function sheet_(name) {
@@ -311,6 +411,22 @@ function normalizePhone_(v) {
   p = p.replace(/^\+?886(?=9)/, '0');
   if (/^9\d{8}$/.test(p)) p = '0' + p; // 試算表把開頭的 0 吃掉時
   return p;
+}
+
+/** LINE ID：去掉開頭的 @、轉小寫；貼上 line.me/ti/p/~xxx 加好友網址時取出 ID。 */
+function normalizeLineId_(v) {
+  let s = String(v == null ? '' : v).replace(INVISIBLE_CHARS, '').trim();
+  const m = s.match(/line\.me\/ti\/p\/~([^/?#\s]+)/i);
+  if (m) s = m[1];
+  return s.replace(/^@/, '').toLowerCase();
+}
+
+/** IG 帳號：去掉開頭的 @、轉小寫；貼上 instagram.com/xxx 網址時取出帳號。 */
+function normalizeIg_(v) {
+  let s = String(v == null ? '' : v).replace(INVISIBLE_CHARS, '').trim();
+  const m = s.match(/instagram\.com\/([^/?#\s]+)/i);
+  if (m) s = m[1];
+  return s.replace(/^@/, '').toLowerCase();
 }
 
 function normalizeMessage_(v) {
@@ -364,8 +480,8 @@ function onOpen() {
     .addItem('初始化／補齊工作表', 'setup')
     .addItem('立即更新網頁人數', 'clearCache')
     .addSeparator()
-    .addItem('清除舊場次的手機號碼', 'clearOldPhones')
-    .addItem('清除所有手機號碼（含目前場次）', 'clearAllPhones')
+    .addItem('清除舊場次的聯絡資料', 'clearOldContacts')
+    .addItem('清除所有聯絡資料（含目前場次）', 'clearAllContacts')
     .addToUi();
 }
 
@@ -406,14 +522,16 @@ function setup() {
 
   let signups = ss.getSheetByName(SIGNUP_SHEET);
   if (!signups) signups = ss.insertSheet(SIGNUP_SHEET, 1);
-  if (signups.getLastRow() === 0) signups.appendRow(SIGNUP_HEADERS);
+  ensureSignupColumns_(signups);
+  const col = columnIndex_(headerRow_(signups));
+  const column = key => signups.getRange(1, col[key] + 1, signups.getMaxRows(), 1);
   signups.setFrozenRows(1);
-  signups.getRange(1, 1, 1, SIGNUP_HEADERS.length).setFontWeight('bold').setBackground('#1d2742').setFontColor('#ffffff');
-  signups.getRange('B:D').setNumberFormat('@');
-  signups.getRange('F:F').setNumberFormat('@').setWrap(true);
-  signups.setColumnWidth(1, 150);
-  signups.setColumnWidth(6, 320);
-  signups.getRange('E2:E').setDataValidation(
+  signups.getRange(1, 1, 1, signups.getLastColumn()).setFontWeight('bold').setBackground('#1d2742').setFontColor('#ffffff');
+  ['event', 'nickname', 'phone', 'line', 'ig'].forEach(key => column(key).setNumberFormat('@'));
+  column('message').setNumberFormat('@').setWrap(true);
+  signups.setColumnWidth(col.time + 1, 150);
+  signups.setColumnWidth(col.message + 1, 320);
+  signups.getRange(2, col.status + 1, Math.max(signups.getMaxRows() - 1, 1), 1).setDataValidation(
     SpreadsheetApp.newDataValidation()
       .requireValueInList([STATUS_CONFIRMED, STATUS_WAITLIST, STATUS_CANCELLED], true)
       .setAllowInvalid(true)
@@ -436,33 +554,39 @@ function setDropdown_(sheet, key, options) {
   );
 }
 
-function clearOldPhones() {
-  clearPhones_(false);
+function clearOldContacts() {
+  clearContacts_(false);
 }
 
-function clearAllPhones() {
-  clearPhones_(true);
+function clearAllContacts() {
+  clearContacts_(true);
 }
 
-function clearPhones_(includeCurrent) {
+/** 把手機、LINE ID、IG 帳號改成「（已刪除）」，暱稱與報名紀錄保留。 */
+function clearContacts_(includeCurrent) {
   const ui = SpreadsheetApp.getUi();
   const currentId = readSettings_().eventId;
   const scope = includeCurrent ? '所有場次（包含目前場次）' : '目前場次（' + currentId + '）以外的舊場次';
-  const answer = ui.alert('清除手機號碼', '將把' + scope + '的手機號碼改成「（已刪除）」，無法復原。確定嗎？', ui.ButtonSet.YES_NO);
+  const answer = ui.alert('清除聯絡資料', '將把' + scope + '的手機、LINE ID、IG 帳號改成「' + DELETED + '」，無法復原。確定嗎？', ui.ButtonSet.YES_NO);
   if (answer !== ui.Button.YES) return;
 
   const sh = sheet_(SIGNUP_SHEET);
   const values = sh.getDataRange().getDisplayValues();
+  const col = columnIndex_(values[0] || []);
   let cleared = 0;
   for (let i = 1; i < values.length; i++) {
-    const eventId = String(values[i][COL.event]).trim();
-    const phone = String(values[i][COL.phone]).trim();
-    if (!phone || phone === '（已刪除）') continue;
-    if (!includeCurrent && eventId === currentId) continue;
-    sh.getRange(i + 1, COL.phone + 1).setValue('（已刪除）');
-    cleared++;
+    if (!includeCurrent && String(values[i][col.event]).trim() === currentId) continue;
+    let touched = false;
+    CONTACT_KEYS.forEach(key => {
+      if (col[key] < 0) return;
+      const v = String(values[i][col[key]]).trim();
+      if (!v || v === DELETED) return;
+      sh.getRange(i + 1, col[key] + 1).setValue(DELETED);
+      touched = true;
+    });
+    if (touched) cleared++;
   }
-  ui.alert('完成', '已清除 ' + cleared + ' 筆手機號碼。', ui.ButtonSet.OK);
+  ui.alert('完成', '已清除 ' + cleared + ' 筆報名的聯絡資料。', ui.ButtonSet.OK);
 }
 
 function toast_(msg) {

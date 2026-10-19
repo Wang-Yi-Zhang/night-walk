@@ -381,11 +381,26 @@
     return p;
   }
 
+  // 與 apps-script/Code.gs 的 normalizeLineId_／normalizeIg_ 相同
+  function normalizeLineId(v) {
+    let s = String(v || '').trim();
+    const m = s.match(/line\.me\/ti\/p\/~([^/?#\s]+)/i);
+    if (m) s = m[1];
+    return s.replace(/^@/, '').toLowerCase();
+  }
+
+  function normalizeIg(v) {
+    let s = String(v || '').trim();
+    const m = s.match(/instagram\.com\/([^/?#\s]+)/i);
+    if (m) s = m[1];
+    return s.replace(/^@/, '').toLowerCase();
+  }
+
   function setFormError(msg, field) {
     const el = $('form-error');
     el.textContent = msg || '';
     el.hidden = !msg;
-    ['f-nickname', 'f-phone', 'f-message'].forEach(id => $(id).removeAttribute('aria-invalid'));
+    ['f-nickname', 'f-phone', 'f-line', 'f-ig', 'f-message'].forEach(id => $(id).removeAttribute('aria-invalid'));
     if (field) {
       const input = $('f-' + field);
       if (input) {
@@ -408,11 +423,18 @@
 
     const nickname = $('f-nickname').value.replace(/\s+/g, ' ').trim();
     const phone = normalizePhone($('f-phone').value);
+    const line = normalizeLineId($('f-line').value);
+    const ig = normalizeIg($('f-ig').value);
     const message = $('f-message').value.trim();
 
     if (charLen(nickname) < 1) return setFormError('請填寫公開暱稱。', 'nickname');
     if (charLen(nickname) > NICK_MAX) return setFormError('暱稱請在 ' + NICK_MAX + ' 個字以內。', 'nickname');
-    if (!/^09\d{8}$/.test(phone)) return setFormError('手機號碼請填 09 開頭的 10 碼數字。', 'phone');
+    if (!phone && !line && !ig) return setFormError('請至少填一種聯絡方式（手機、LINE ID 或 IG 帳號）。', 'phone');
+    if (phone && !/^09\d{8}$/.test(phone)) return setFormError('手機號碼請填 09 開頭的 10 碼數字。', 'phone');
+    if (line && !/^[a-z0-9._-]{4,20}$/.test(line)) {
+      return setFormError('這看起來不是 LINE ID。LINE ID 不是顯示名稱，可以到 LINE「主頁 → 設定 → 個人檔案 → ID」查看。', 'line');
+    }
+    if (ig && !/^[a-z0-9._]{1,30}$/.test(ig)) return setFormError('IG 帳號只能有英文、數字、句點和底線。', 'ig');
     if (charLen(message) > MSG_MAX) return setFormError('給主辦的話請在 ' + MSG_MAX + ' 字以內。', 'message');
     setFormError('');
 
@@ -423,7 +445,7 @@
     btn.textContent = '送出中…';
 
     try {
-      const res = await api.post({ nickname, phone, message, website: $('f-website').value });
+      const res = await api.post({ nickname, phone, line, ig, message, website: $('f-website').value });
       if (res && res.ok) {
         store.write(state.event.id, { nickname: res.nickname, status: res.status, position: res.position, at: Date.now() });
         success = res;
@@ -435,8 +457,9 @@
         $('signup').scrollIntoView({ behavior: 'smooth', block: 'start' });
         refresh();
       } else {
-        const fieldByError = { nickname: 'nickname', phone: 'phone', message: 'message', duplicate: 'phone' };
-        setFormError((res && res.message) || '送出失敗，請稍後再試。', res && fieldByError[res.error]);
+        const fieldByError = { nickname: 'nickname', phone: 'phone', line: 'line', ig: 'ig', contact: 'phone', message: 'message' };
+        const field = res && (res.error === 'duplicate' ? res.field || 'phone' : fieldByError[res.error]);
+        setFormError((res && res.message) || '送出失敗，請稍後再試。', field);
         if (res && ['full', 'deadline', 'closed', 'status'].indexOf(res.error) >= 0) refresh();
       }
     } catch (err) {

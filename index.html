@@ -99,11 +99,23 @@
           <p class="help"><span>會顯示在報名清單上，讓大家認識你</span><span id="nick-count" class="counter">0/12</span></p>
         </div>
 
-        <div class="field">
-          <label for="f-phone">手機 <span class="req">必填</span></label>
-          <input id="f-phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="0912345678" enterkeyhint="next" required>
-          <p class="help">不公開，僅供當天集合與取消通知聯絡</p>
-        </div>
+        <fieldset class="field contact-group">
+          <legend>聯絡方式 <span class="req">至少填一項</span></legend>
+          <p class="contact-hint">建議填手機，以便當天緊急聯絡。已經是主辦的 LINE 或 IG 好友的話，填 LINE ID 或 IG 帳號就好，讓主辦對得上是你。</p>
+          <div class="contact-row">
+            <label for="f-phone">手機 <span class="rec">建議</span></label>
+            <input id="f-phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="0912345678" enterkeyhint="next">
+          </div>
+          <div class="contact-row">
+            <label for="f-line">LINE ID</label>
+            <input id="f-line" name="line" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="不是顯示名稱" enterkeyhint="next">
+          </div>
+          <div class="contact-row">
+            <label for="f-ig">IG 帳號</label>
+            <input id="f-ig" name="ig" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="@your.account" enterkeyhint="next">
+          </div>
+          <p class="help">都不公開，僅供主辦聯絡本場活動使用</p>
+        </fieldset>
 
         <div class="field">
           <label for="f-message">給主辦的話 <span class="opt">選填</span></label>
@@ -118,7 +130,7 @@
 
         <p id="form-error" class="form-error" role="alert" hidden></p>
         <button id="submit" class="btn btn-primary" type="submit">送出報名</button>
-        <p class="privacy">你填寫的手機號碼僅供主辦者聯絡本場活動使用（如集合、取消通知），不會公開或提供給他人。公開暱稱將顯示於本頁報名清單。手機號碼將於活動結束後一個月內刪除。送出即表示你同意以上說明。</p>
+        <p class="privacy">你填寫的聯絡方式（手機、LINE ID、IG 帳號）僅供主辦者聯絡本場活動使用（如集合、取消通知），不會公開或提供給他人。公開暱稱將顯示於本頁報名清單。聯絡方式將於活動結束後一個月內刪除。送出即表示你同意以上說明。</p>
       </form>
 
       <div id="view-success" class="view success" hidden>
