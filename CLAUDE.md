@@ -1,0 +1,3 @@
+- 改 `apps-script/Code.gs` 前後：執行 `npm test`（測試在 `tests/`，規則與 API 合約在 `SPEC.md`）。
+- 改報名規則或 API 欄位：同步 `mock-api.js`，`tests/mock-parity.test.js` 會比對兩者。
+- 改期或辦新場次：照 `CHECKLIST.md`。

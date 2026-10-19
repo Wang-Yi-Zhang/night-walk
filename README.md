@@ -85,8 +85,10 @@
 修改 `Code.gs` 後，先在本機跑一次後端測試（需要 Node.js 22 以上，不用安裝任何套件），全部通過再部署：
 
 ```bash
-node --test
+npm test
 ```
+
+推上 GitHub 後，GitHub Actions 也會自動跑一次，結果顯示在 commit 旁邊（綠勾或紅叉）。
 
 要更新部署才會生效，而且**網址不會變**：
 
@@ -123,7 +125,9 @@ node --test
 | `index.html`、`style.css`、`app.js` | 報名網頁 |
 | `config.js` | Apps Script 網址 |
 | `apps-script/Code.gs` | 後端程式（複製到 Apps Script 用，GitHub Pages 不會執行它） |
-| `tests/` | 後端測試：在 Node 裡用假的 Google 服務載入 `Code.gs`，只透過對外介面驗證報名規則。在專案根目錄執行 `node --test` |
+| `tests/` | 後端測試：在 Node 裡用假的 Google 服務載入 `Code.gs`，只透過對外介面驗證報名規則，並比對 `mock-api.js` 的規則是否一致。執行 `npm test` |
+| `package.json` | 只用來放測試指令 `npm test`，沒有任何套件依賴 |
+| `.github/workflows/test.yml` | 每次推上 GitHub 時自動跑測試 |
 | `mock-api.js` | 本機預覽用的假資料：網址加 `?mock`、`?mock=wait`、`?mock=full`、`?mock=rain`、`?mock=deadline`、`?mock=notice` |
 | `og.png` | LINE 分享預覽圖，用 `tools/make_og.py` 產生 |
 | `event.ics` | iPhone／Android「加入行事曆」用的檔案，用 `tools/make_ics.py` 產生。日期時間跟試算表不一致時，網頁會自動隱藏這顆按鈕 |

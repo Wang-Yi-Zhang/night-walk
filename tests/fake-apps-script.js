@@ -12,7 +12,8 @@ const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert');
 
-const CODE_PATH = path.join(__dirname, '..', 'apps-script', 'Code.gs');
+// 突變檢查時設定 CODE_GS_PATH 指向改壞的複本，repo 裡的 Code.gs 保持不動
+const DEFAULT_CODE_PATH = path.join(__dirname, '..', 'apps-script', 'Code.gs');
 
 /** 預設時間：2026-10-20 08:00 台灣時間，在預設截止時間（2026-10-23 12:00）之前。 */
 const DEFAULT_NOW = Date.UTC(2026, 9, 20, 0, 0);
@@ -175,7 +176,8 @@ function loadBackend(options = {}) {
     },
   };
   vm.createContext(ctx);
-  vm.runInContext(fs.readFileSync(CODE_PATH, 'utf8'), ctx, { filename: CODE_PATH });
+  const codePath = process.env.CODE_GS_PATH || DEFAULT_CODE_PATH;
+  vm.runInContext(fs.readFileSync(codePath, 'utf8'), ctx, { filename: codePath });
 
   const parse = out => {
     assert.strictEqual(out.mimeType, 'application/json');
