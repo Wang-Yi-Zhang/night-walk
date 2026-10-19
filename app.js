@@ -134,6 +134,16 @@
       const p = document.createElement('p');
       p.textContent = ev.statusNote || '請留意本頁公告。';
       banner.replaceChildren(strong, p);
+      banner.classList.remove('info');
+      banner.hidden = false;
+    } else if (ev.statusNote) {
+      // 正常舉行但有補充說明（例如改期公告）：顯示提示橫幅，報名照常開放
+      const strong = document.createElement('strong');
+      strong.textContent = '📢 公告';
+      const p = document.createElement('p');
+      p.textContent = ev.statusNote;
+      banner.replaceChildren(strong, p);
+      banner.classList.add('info');
       banner.hidden = false;
     } else {
       banner.hidden = true;

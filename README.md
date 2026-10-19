@@ -61,6 +61,8 @@
 
 > 「設定」分頁的日期請照格式填寫：`2026-10-23`、`19:00`、`2026-10-23 12:00`（台灣時間）。
 
+> 📋 **改期或辦下一場時，請照 [CHECKLIST.md（活動異動確認表）](CHECKLIST.md) 逐項檢查。**
+
 ### 辦下一場
 1. 在「設定」分頁修改：**場次代碼**（換一個新的，例如新日期）、場次標題、活動日期、時間、報名截止，並把活動狀態改回「正常舉行」、報名開關改回「開」。
 2. 網頁會自動切換成新場次，人數從 0 開始算。舊場次的報名紀錄會保留在「報名」分頁。
@@ -109,5 +111,6 @@
 | `index.html`、`style.css`、`app.js` | 報名網頁 |
 | `config.js` | Apps Script 網址 |
 | `apps-script/Code.gs` | 後端程式（複製到 Apps Script 用，GitHub Pages 不會執行它） |
-| `mock-api.js` | 本機預覽用的假資料：網址加 `?mock`、`?mock=wait`、`?mock=full`、`?mock=rain`、`?mock=deadline` |
-| `og.png` | LINE 分享預覽圖 |
+| `mock-api.js` | 本機預覽用的假資料：網址加 `?mock`、`?mock=wait`、`?mock=full`、`?mock=rain`、`?mock=deadline`、`?mock=notice` |
+| `og.png` | LINE 分享預覽圖，用 `tools/make_og.py` 產生 |
+| `CHECKLIST.md` | 改期或辦新場次時的確認表 |

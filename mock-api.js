@@ -3,10 +3,10 @@ window.NightWalkMock = function (scenario) {
   'use strict';
 
   const settings = {
-    id: '2026-10-23',
+    id: '2026-10-26',
     name: '麟光夜行・富陽生態公園',
     title: '第 1 場',
-    date: '2026-10-23',
+    date: '2026-10-26',
     start: '19:00',
     end: '21:00',
     place: '捷運麟光站 1 號出口',
@@ -19,7 +19,7 @@ window.NightWalkMock = function (scenario) {
     rainRule: '當天 15:00 台北市降雨機率 ≥ 70% 即取消，16:00 前於本頁公告。',
     contactEmail: 'hemoparasite@gmail.com',
     contactLine: 'hemoparasite',
-    deadline: '2026-10-23 12:00',
+    deadline: '2026-10-26 12:00',
   };
   let capacity = 10;
   const waitlistCapacity = 5;
@@ -36,6 +36,7 @@ window.NightWalkMock = function (scenario) {
     case 'full': seed(10, '正取'); seed(5, '候補'); break;
     case 'rain': seed(8, '正取'); settings.status = '因雨取消'; settings.statusNote = '15:00 降雨機率 80%，本場取消，改期另行通知。'; break;
     case 'deadline': seed(7, '正取'); deadlinePassed = true; break;
+    case 'notice': seed(3, '正取'); settings.statusNote = '原訂 10/23（五）因颱風改期至 10/26（一），時間地點不變。'; break;
     default: seed(6, '正取');
   }
 

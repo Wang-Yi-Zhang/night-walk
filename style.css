@@ -214,6 +214,8 @@ a { color: inherit; }
 }
 .banner strong { display: block; font-size: 18px; color: var(--danger); margin-bottom: 2px; }
 .banner p { margin: 0; }
+.banner.info { border-color: var(--accent); background: var(--accent-soft); }
+.banner.info strong { color: var(--accent-text); }
 
 /* ── Seats ────────────────────────────────────── */
 
