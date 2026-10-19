@@ -549,6 +549,24 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 }
 .cal-buttons .btn { width: 100%; }
 .cal-buttons.single { grid-template-columns: 1fr; }
+.cal-hint {
+  grid-column: 1 / -1;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  font-size: 14px;
+  text-align: left;
+}
+.cal-hint p { margin: 0 0 8px; }
+.cal-hint input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 16px; /* 小於 16px 時 iPhone 點選會自動放大 */
+}
 
 .screenshot-tip {
   margin: 16px 0;

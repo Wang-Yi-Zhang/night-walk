@@ -9,6 +9,9 @@
   const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
   const REFRESH_MS = 60000;
   const ICS_PATH = 'event.ics';
+  const IN_LINE = /\bLine\//.test(navigator.userAgent); // LINE 內建瀏覽器
+  // 「Apple／其他」按鈕：config.js 的 appleCalendar，或網址加 ?applecal 單獨測試
+  const APPLE_ON = cfg.appleCalendar === true || params.has('applecal');
 
   const $ = id => document.getElementById(id);
 
@@ -20,6 +23,7 @@
   let forceForm = false;
   let submitting = false;
   let icsInfo = null; // event.ics 的開始／結束時間（UTC），讀不到就是 null
+  let icsHint = null; // LINE 裡按過「Apple／其他」後的提示：'copied'／'manual'
 
   // ── API ──────────────────────────────────────────
 
@@ -357,18 +361,54 @@
     // iPhone 只接受網站上真的存在的 .ics 檔（event.ics，用 tools/make_ics.py 產生）。
     // 檔案的時間和試算表不一致時不顯示按鈕，避免加錯日期。
     const utc = t => new Date(Date.UTC(d.y, d.mo - 1, d.d, t.h - 8, t.mi)).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-    const icsMatches = cfg.appleCalendar === true && icsInfo && icsInfo.start === utc(t1) && icsInfo.end === utc(t2);
+    const icsMatches = APPLE_ON && icsInfo && icsInfo.start === utc(t1) && icsInfo.end === utc(t2);
+    const icsUrl = new URL(ICS_PATH, location.href).toString();
     const buttons = [gBtn];
     if (icsMatches) {
-      const iBtn = document.createElement('a');
+      const iBtn = document.createElement(IN_LINE ? 'button' : 'a');
       iBtn.className = 'btn btn-ghost btn-small';
-      // openExternalBrowser=1：在 LINE 裡點擊時改用 Safari／Chrome 開啟，行事曆才加得進去
-      iBtn.href = new URL(ICS_PATH + '?openExternalBrowser=1', location.href).toString();
       iBtn.textContent = '🗓 Apple／其他';
+      if (IN_LINE) {
+        // LINE 內建瀏覽器會把 .ics 交給 iPhone 當「訂閱行事曆」處理並改用 http，一定失敗
+        // （openExternalBrowser=1 對網頁裡的連結無效）。改成複製連結，請使用者貼到 Safari。
+        iBtn.type = 'button';
+        iBtn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(icsUrl);
+            icsHint = 'copied';
+          } catch (err) {
+            icsHint = 'manual'; // 不能自動複製就顯示連結讓使用者自己複製
+          }
+          renderIcsHint(container, icsUrl, icsHint === 'manual');
+        });
+      } else {
+        iBtn.href = icsUrl;
+      }
       buttons.push(iBtn);
     }
     container.classList.toggle('single', buttons.length === 1);
     container.replaceChildren(...buttons);
+    // 每分鐘自動更新會重畫按鈕，提示要保留
+    if (icsMatches && IN_LINE && icsHint) renderIcsHint(container, icsUrl, false);
+  }
+
+  function renderIcsHint(container, icsUrl, focus) {
+    const hint = document.createElement('div');
+    hint.className = 'cal-hint';
+    const p = document.createElement('p');
+    p.textContent = icsHint === 'copied'
+      ? '已複製行事曆連結。LINE 裡無法直接加入，請打開 Safari，把連結貼到網址列開啟，再按「加入行事曆」。'
+      : 'LINE 裡無法直接加入。請複製下面的連結，打開 Safari 貼到網址列開啟，再按「加入行事曆」。';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.readOnly = true;
+    input.value = icsUrl;
+    input.addEventListener('focus', () => input.setSelectionRange(0, input.value.length));
+    hint.append(p, input);
+    const old = container.querySelector('.cal-hint');
+    if (old) old.replaceWith(hint);
+    else container.append(hint);
+    if (focus) input.focus();
   }
 
   // ── 表單 ─────────────────────────────────────────
@@ -552,7 +592,7 @@
   async function init() {
     bind();
     updateCounter();
-    if (cfg.appleCalendar === true) loadIcsInfo();
+    if (APPLE_ON) loadIcsInfo();
     if (MOCK) {
       await loadScript('mock-api.js');
       api = window.NightWalkMock(params.get('mock'));
