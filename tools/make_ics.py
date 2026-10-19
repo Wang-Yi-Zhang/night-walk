@@ -50,7 +50,7 @@ def main():
     ap.add_argument('--out', default='event.ics')
     a = ap.parse_args()
 
-    details = '\n'.join([f'集合：{a.place}', f'路線：{a.route}', f'記得帶：{a.bring}', a.rain, a.url])
+    details = '\n'.join(['本活動需事先報名，名額有限', f'集合：{a.place}', f'路線：{a.route}', f'記得帶：{a.bring}', a.rain, a.url])
     lines = [
         'BEGIN:VCALENDAR',
         'VERSION:2.0',

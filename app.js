@@ -23,7 +23,7 @@
   let forceForm = false;
   let submitting = false;
   let icsInfo = null; // event.ics 的開始／結束時間（UTC），讀不到就是 null
-  let icsHint = null; // LINE 裡按過「Apple／其他」後的提示：'copied'／'manual'
+  let icsHint = null; // LINE 裡按過「Apple／其他」後的提示：{ container, copied }
 
   // ── API ──────────────────────────────────────────
 
@@ -131,6 +131,8 @@
       return li;
     }));
     list.closest('.card').hidden = !(ev.bring && ev.bring.length);
+
+    renderInfoCalendar(ev);
 
     const banner = $('status-banner');
     if (ev.status && ev.status !== '正常舉行') {
@@ -335,6 +337,7 @@
 
     const title = ev.name + (ev.title ? '（' + ev.title + '）' : '');
     const details = [
+      '本活動需事先報名，名額有限',
       '集合：' + ev.place,
       ev.route ? '路線：' + ev.route : '',
       ev.bring && ev.bring.length ? '記得帶：' + ev.bring.join('、') : '',
@@ -373,13 +376,15 @@
         // （openExternalBrowser=1 對網頁裡的連結無效）。改成複製連結，請使用者貼到 Safari。
         iBtn.type = 'button';
         iBtn.addEventListener('click', async () => {
+          let copied = false;
           try {
             await navigator.clipboard.writeText(icsUrl);
-            icsHint = 'copied';
+            copied = true;
           } catch (err) {
-            icsHint = 'manual'; // 不能自動複製就顯示連結讓使用者自己複製
+            /* 不能自動複製就顯示連結讓使用者自己複製 */
           }
-          renderIcsHint(container, icsUrl, icsHint === 'manual');
+          icsHint = { container, copied };
+          renderIcsHint(container, icsUrl, !copied);
         });
       } else {
         iBtn.href = icsUrl;
@@ -389,14 +394,14 @@
     container.classList.toggle('single', buttons.length === 1);
     container.replaceChildren(...buttons);
     // 每分鐘自動更新會重畫按鈕，提示要保留
-    if (icsMatches && IN_LINE && icsHint) renderIcsHint(container, icsUrl, false);
+    if (icsMatches && IN_LINE && icsHint && icsHint.container === container) renderIcsHint(container, icsUrl, false);
   }
 
   function renderIcsHint(container, icsUrl, focus) {
     const hint = document.createElement('div');
     hint.className = 'cal-hint';
     const p = document.createElement('p');
-    p.textContent = icsHint === 'copied'
+    p.textContent = icsHint.copied
       ? '已複製行事曆連結。LINE 裡無法直接加入，請打開 Safari，把連結貼到網址列開啟，再按「加入行事曆」。'
       : 'LINE 裡無法直接加入。請複製下面的連結，打開 Safari 貼到網址列開啟，再按「加入行事曆」。';
     const input = document.createElement('input');
@@ -409,6 +414,14 @@
     if (old) old.replaceWith(hint);
     else container.append(hint);
     if (focus) input.focus();
+  }
+
+  // 活動資訊卡片常駐行事曆按鈕：換瀏覽器或清除資料後，已報名者還是找得到。取消或延期時不顯示。
+  function renderInfoCalendar(ev) {
+    const box = $('info-cal');
+    const container = box.querySelector('[data-cal]');
+    renderCalendar(container, !ev.status || ev.status === '正常舉行' ? ev : null);
+    box.hidden = !container.querySelector('.btn');
   }
 
   // ── 表單 ─────────────────────────────────────────
@@ -522,7 +535,10 @@
       const end = /^DTEND:(\d{8}T\d{6}Z)\s*$/m.exec(text);
       if (!start || !end) return;
       icsInfo = { start: start[1], end: end[1] };
-      if (state) renderSignup(state);
+      if (state) {
+        renderInfoCalendar(state.event);
+        renderSignup(state);
+      }
     } catch (err) {
       /* 讀不到就只顯示 Google 日曆 */
     }

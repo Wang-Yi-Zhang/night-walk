@@ -549,6 +549,9 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 }
 .cal-buttons .btn { width: 100%; }
 .cal-buttons.single { grid-template-columns: 1fr; }
+.info-cal { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.info-cal .cal-note { margin: 0; font-size: 13px; color: var(--muted); }
+.info-cal .cal-buttons { margin-top: 8px; }
 .cal-hint {
   grid-column: 1 / -1;
   padding: 10px 12px;

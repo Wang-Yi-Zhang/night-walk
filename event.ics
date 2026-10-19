@@ -5,16 +5,16 @@ CALSCALE:GREGORIAN
 METHOD:PUBLISH
 BEGIN:VEVENT
 UID:night-walk-2026-10-26@wang-yi-zhang.github.io
-DTSTAMP:20261019T003854Z
+DTSTAMP:20261019T030344Z
 DTSTART:20261026T110000Z
 DTEND:20261026T130000Z
 SUMMARY:麟光夜行・富陽生態公園
 LOCATION:捷運麟光站 1 號出口
-DESCRIPTION:集合：捷運麟光站 1 號出口\n路線：富陽自然生
- 態公園\n記得帶：手電筒、長袖長褲、鞋子（建議雨鞋）
- 、愉快的心情\n當天 15:00 台北市降雨機率 ≥ 70% 即取消
- ，16:00 前於報名網頁公告。\nhttps://wang-yi-zhang.github.io/nigh
- t-walk/
+DESCRIPTION:本活動需事先報名，名額有限\n集合：捷運麟光
+ 站 1 號出口\n路線：富陽自然生態公園\n記得帶：手電筒
+ 、長袖長褲、鞋子（建議雨鞋）、愉快的心情\n當天 15:00
+  台北市降雨機率 ≥ 70% 即取消，16:00 前於報名網頁公告
+ 。\nhttps://wang-yi-zhang.github.io/night-walk/
 URL:https://wang-yi-zhang.github.io/night-walk/
 BEGIN:VALARM
 TRIGGER:-PT2H
