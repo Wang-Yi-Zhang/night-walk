@@ -373,7 +373,7 @@
       iBtn.textContent = '🗓 Apple／其他';
       if (IN_LINE) {
         // LINE 內建瀏覽器會把 .ics 交給 iPhone 當「訂閱行事曆」處理並改用 http，一定失敗
-        // （openExternalBrowser=1 對網頁裡的連結無效）。改成複製連結，請使用者貼到 Safari。
+        // （openExternalBrowser=1 對網頁裡的連結無效）。改成複製連結，請報名者貼到 Safari。
         iBtn.type = 'button';
         iBtn.addEventListener('click', async () => {
           let copied = false;
@@ -381,7 +381,7 @@
             await navigator.clipboard.writeText(icsUrl);
             copied = true;
           } catch (err) {
-            /* 不能自動複製就顯示連結讓使用者自己複製 */
+            /* 不能自動複製就顯示連結讓報名者自己複製 */
           }
           icsHint = { container, copied };
           renderIcsHint(container, icsUrl, !copied);

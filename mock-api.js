@@ -63,6 +63,7 @@ window.NightWalkMock = function (scenario) {
       waitlist: rows.filter(r => r.status === '候補').map(r => r.nickname),
       registration: registration(),
       generatedAt: new Date().toISOString(),
+      version: 'mock',
     };
   }
 

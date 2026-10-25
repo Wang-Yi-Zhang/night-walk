@@ -9,6 +9,8 @@ LINE 抓預覽、iPhone 加入行事曆都不會執行網頁的 JavaScript，所
     python tools/sync_event.py --badge "因颱風改期" --note "原 10/23 因颱風改期。"
     python tools/sync_event.py --check               # 只檢查是否過期；過期時結束代碼為 1
 
+也會比對正式後端回傳的版本和 repo 裡的 apps-script/Code.gs，提醒改了程式卻還沒重新部署。
+
 --check 只需要 Python 標準函式庫；更新 og.png 需要 Pillow 和 Windows 的 Noto 字型（見 make_og.py）。
 """
 import argparse
@@ -27,6 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OG = ROOT / 'og.png'
 ICS = ROOT / 'event.ics'
 INDEX = ROOT / 'index.html'
+CODE = ROOT / 'apps-script' / 'Code.gs'
 SITE_URL = 'https://wang-yi-zhang.github.io/night-walk/'
 WEEK = '一二三四五六日'
 
@@ -186,6 +189,23 @@ def get_meta(page, attr, name):
 
 # ── 檢查與更新 ──────────────────────────────────────────────────────
 
+def code_version(text):
+    """跟 tests/code-version.test.js 相同：換行統一成 LF，CODE_VERSION 的值清空後取 SHA-256 前 12 碼。"""
+    blank = re.sub(r"const CODE_VERSION = '[^']*';", "const CODE_VERSION = '';", text.replace('\r\n', '\n'), count=1)
+    return hashlib.sha256(blank.encode('utf-8')).hexdigest()[:12]
+
+
+def check_backend(state):
+    """正式後端部署的是不是 repo 裡這一版 Code.gs。"""
+    want = code_version(CODE.read_bytes().decode('utf-8'))
+    have = state.get('version')
+    if have == want:
+        return []
+    if not have:
+        return [f'正式後端沒有回傳版本（部署的是加入版本標記之前的程式），repo 的 Code.gs 是 {want}']
+    return [f'正式後端的版本是 {have}，repo 的 Code.gs 是 {want}']
+
+
 def check(ev):
     stale = []
     meta = png_meta(OG)
@@ -247,10 +267,17 @@ def main():
     ap.add_argument('--state', default='', help='改用這個 JSON 檔當公開資料（離線測試用），不連線到 Apps Script')
     a = ap.parse_args()
 
-    ev = Event(load_state(a.state), badge=a.badge, note=a.note, kicker=a.kicker)
+    state = load_state(a.state)
+    backend = [] if a.state else check_backend(state)  # 離線測試的 JSON 沒有版本，不比對
+    if backend:
+        print('正式後端不是 repo 裡最新的 Code.gs，請重新部署 Apps Script（編輯既有部署 → 新版本）：')
+        print('\n'.join('・' + s for s in backend) + '\n')
+    backend_failed = a.check and bool(backend)
+
+    ev = Event(state, badge=a.badge, note=a.note, kicker=a.kicker)
     if not ev.date_text:
         print('試算表還沒填活動日期，略過。')
-        return
+        sys.exit(1 if backend_failed else 0)
     problems = ev.problems()
     if problems:
         sys.exit('試算表的設定有問題，請先在試算表點「🔦 夜行報名 → 檢查設定」：\n' + '\n'.join('・' + p for p in problems))
@@ -263,7 +290,7 @@ def main():
             print('\n'.join('・' + s for s in stale))
             sys.exit(1)
         print('og.png、event.ics、index.html 都跟試算表一致。')
-        return
+        sys.exit(1 if backend_failed else 0)
 
     changed = write(ev)
     if changed:

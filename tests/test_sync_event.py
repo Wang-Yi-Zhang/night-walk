@@ -1,9 +1,10 @@
-"""tools/sync_event.py：event.ics 的結束時間與 UID。
+"""tools/sync_event.py：event.ics 的結束時間與 UID，以及正式後端的版本比對。
 
 執行（在 repo 根目錄）：python -m unittest discover -s tests -p "test_*.py"
 只用 Python 標準函式庫；不產生 og.png，所以不需要 Pillow。
 """
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -74,6 +75,31 @@ class CheckUid(unittest.TestCase):
         self.assertEqual(len(problems), 1)
         self.assertIn('night-walk-2026-10-26@', problems[0])
         self.assertIn('night-walk-2026-10-23@', problems[0])
+
+
+class BackendVersion(unittest.TestCase):
+    """--check 要抓到「改了 Code.gs 卻還沒重新部署」。"""
+
+    def setUp(self):
+        source = sync_event.CODE.read_text(encoding='utf-8')
+        self.constant = re.search(r"const CODE_VERSION = '([^']*)';", source)[1]
+
+    def test_same_hash_as_the_node_test(self):
+        """tests/code-version.test.js 確認 CODE_VERSION 跟 Code.gs 相符；這裡確認兩邊算法相同。"""
+        self.assertEqual(sync_event.code_version(sync_event.CODE.read_text(encoding='utf-8')), self.constant)
+
+    def test_crlf_does_not_change_the_version(self):
+        source = sync_event.CODE.read_text(encoding='utf-8')
+        self.assertEqual(sync_event.code_version(source.replace('\n', '\r\n')), self.constant)
+
+    def test_deployed_version_matches(self):
+        self.assertEqual(sync_event.check_backend({'version': self.constant}), [])
+
+    def test_old_or_missing_version_is_reported(self):
+        self.assertIn('沒有回傳版本', ''.join(sync_event.check_backend({})))
+        problem = ''.join(sync_event.check_backend({'version': '000000000000'}))
+        self.assertIn('000000000000', problem)
+        self.assertIn(self.constant, problem)
 
 
 if __name__ == '__main__':

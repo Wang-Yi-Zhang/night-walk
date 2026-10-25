@@ -2,7 +2,7 @@
  * 麟光夜行報名系統：Google Apps Script 後端
  *
  * 綁定在報名用的 Google 試算表上，部署成「網頁應用程式」後：
- *   GET  → 回傳公開資訊（活動設定、人數、暱稱清單），永遠不含聯絡資料（手機、LINE ID、IG）
+ *   GET  → 回傳公開資訊（活動設定、人數、暱稱清單），永遠不含聯絡方式（手機、LINE ID、IG）
  *   POST → 新增一筆報名
  *
  * 權限刻意壓到最小：
@@ -14,6 +14,11 @@
 
 // ── 固定設定（不放在試算表裡，避免被改成寄給別人） ─────────────────────
 const NOTIFY_EMAIL = 'hemoparasite@gmail.com';
+
+// 這份程式的版本：本檔其餘內容的雜湊值，放在公開資料的 version，
+// 讓 tools/sync_event.py --check 確認正式後端部署的就是 repo 裡這一版。
+// 改了這個檔案，npm test 會印出新的值；更新後要重新部署。
+const CODE_VERSION = '7aebc1adddff';
 
 const SETTINGS_SHEET = '設定';
 const SIGNUP_SHEET = '報名';
@@ -61,7 +66,7 @@ const DEFAULT_SETTINGS = [
   ['地圖連結', 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('捷運麟光站 1號出口'), ''],
   ['路線', '富陽自然生態公園', ''],
   ['費用', '免費', ''],
-  ['正取上限', '10', '加開名額時調高。候補不會自動轉正取，請到「報名」分頁把「候補」改成「正取」'],
+  ['正取上限', '10', '加開名額時調高。候補不會自動變成正取，請到「報名」分頁把「候補」改成「正取」'],
   ['候補上限', '5', ''],
   ['報名截止', '', '格式 YYYY-MM-DD HH:MM（台灣時間），例如 2026-11-20 12:00。留空代表不截止'],
   ['報名開關', '關', '「開」或「關」。新試算表預設「關」，填好本場的設定後再改成「開」'],
@@ -270,6 +275,7 @@ function buildPublicState_() {
     waitlist: waitlist,
     registration: registrationState_(s, confirmed.length, waitlist.length, new Date()),
     generatedAt: new Date().toISOString(),
+    version: CODE_VERSION,
   };
 }
 
@@ -608,8 +614,8 @@ function onOpen() {
     .addItem('立即更新網頁人數', 'clearCache')
     .addItem('檢查設定', 'checkSettings')
     .addSeparator()
-    .addItem('清除舊場次的聯絡資料', 'clearOldContacts')
-    .addItem('清除所有聯絡資料（含目前場次）', 'clearAllContacts')
+    .addItem('清除舊場次的聯絡方式', 'clearOldContacts')
+    .addItem('清除所有聯絡方式（含目前場次）', 'clearAllContacts')
     .addToUi();
 }
 
@@ -721,7 +727,7 @@ function clearContacts_(includeCurrent) {
   const ui = SpreadsheetApp.getUi();
   const currentId = readSettings_().eventId;
   const scope = includeCurrent ? '所有場次（包含目前場次）' : '目前場次（' + currentId + '）以外的舊場次';
-  const answer = ui.alert('清除聯絡資料', '將把' + scope + '的手機、LINE ID、IG 帳號改成「' + DELETED + '」，無法復原。確定嗎？', ui.ButtonSet.YES_NO);
+  const answer = ui.alert('清除聯絡方式', '將把' + scope + '的手機、LINE ID、IG 帳號改成「' + DELETED + '」，無法復原。確定嗎？', ui.ButtonSet.YES_NO);
   if (answer !== ui.Button.YES) return;
 
   const sh = sheet_(SIGNUP_SHEET);
@@ -740,7 +746,7 @@ function clearContacts_(includeCurrent) {
     });
     if (touched) cleared++;
   }
-  ui.alert('完成', '已清除 ' + cleared + ' 筆報名的聯絡資料。', ui.ButtonSet.OK);
+  ui.alert('完成', '已清除 ' + cleared + ' 筆報名的聯絡方式。', ui.ButtonSet.OK);
 }
 
 function toast_(msg) {

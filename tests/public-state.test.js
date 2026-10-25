@@ -1,4 +1,4 @@
-// 讀取（GET）：公開狀態的內容、不外洩聯絡資料、快取。
+// 讀取（GET）：公開狀態的內容、不外洩聯絡方式、快取。
 'use strict';
 
 const { test } = require('node:test');

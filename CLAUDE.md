@@ -1,3 +1,5 @@
 - 改 `apps-script/Code.gs` 前後：執行 `npm test`（測試在 `tests/`，規則與 API 合約在 `SPEC.md`）。
+- 改 `tools/` 或 `calendar-time.js`：另外執行 `python -m unittest discover -s tests -p "test_*.py"`。
 - 改報名規則或 API 欄位：同步 `mock-api.js`，`tests/mock-parity.test.js` 會比對兩者。
 - 改期或辦新場次：照 `CHECKLIST.md`。
+- 正式資料（唯讀）：`python tools/sync_event.py --check` 印出目前場次，並比對網站檔案和正式後端的版本。

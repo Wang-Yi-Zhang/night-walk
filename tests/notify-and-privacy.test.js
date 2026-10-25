@@ -1,4 +1,4 @@
-// 通知信，以及試算表選單的「清除舊場次／所有聯絡資料」。
+// 通知信，以及試算表選單的「清除舊場次／所有聯絡方式」。
 'use strict';
 
 const { test } = require('node:test');
@@ -60,7 +60,7 @@ function withOldEvent() {
   return h;
 }
 
-test('清除舊場次的聯絡資料：只動舊場次，暱稱與紀錄保留', () => {
+test('清除舊場次的聯絡方式：只動舊場次，暱稱與紀錄保留', () => {
   const h = withOldEvent();
   h.clearOldContacts();
 
@@ -83,7 +83,7 @@ test('清除舊場次的聯絡資料：只動舊場次，暱稱與紀錄保留',
   assert.ok(h.ui.alerts[3].message.includes('已清除 0 筆'), '已刪除的不重複計算');
 });
 
-test('清除所有聯絡資料：包含目前場次，空白欄位維持空白', () => {
+test('清除所有聯絡方式：包含目前場次，空白欄位維持空白', () => {
   const h = withOldEvent();
   h.clearAllContacts();
   const frog = h.rowOf('螢火蟲');
