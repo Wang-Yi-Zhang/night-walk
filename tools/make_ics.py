@@ -5,7 +5,7 @@ iPhone 不接受網頁臨時產生的行事曆檔，必須是網站上真的存�
 網頁會自動比對這個檔案和試算表的日期時間，不一致時就隱藏「Apple／其他」按鈕，避免加錯日期。
 
 用法（在 repo 根目錄執行）：
-    python tools/make_ics.py --date 2026-10-26 --start 19:00 --end 21:00
+    python tools/make_ics.py --date 2026-10-26 --start 19:00 --end 21:00 --uid 2026-10-23
 
 通常不用直接執行：tools/sync_event.py 會從試算表讀取活動資料，再呼叫這裡的 build()。
 """
@@ -48,16 +48,16 @@ def main():
     ap.add_argument('--bring', default='手電筒、長袖長褲、鞋子（建議雨鞋）、愉快的心情')
     ap.add_argument('--rain', default='當天 15:00 台北市降雨機率 ≥ 70% 即取消，16:00 前於報名網頁公告。')
     ap.add_argument('--url', default='https://wang-yi-zhang.github.io/night-walk/')
-    ap.add_argument('--uid', default='', help='同一場活動固定不變；預設用日期')
+    ap.add_argument('--uid', required=True, help='試算表的場次代碼；改期時不變，重新匯入才會更新原本的行事曆活動')
     ap.add_argument('--out', default='event.ics')
     a = ap.parse_args()
     with open(a.out, 'wb') as f:
-        f.write(build(a.date, a.start, a.end, a.title, a.place, a.route, a.bring, a.rain, a.url, a.uid or a.date))
+        f.write(build(a.date, a.start, a.end, a.title, a.place, a.route, a.bring, a.rain, a.url, a.uid))
     print('saved', a.out)
 
 
 def build(date, start, end, title, place, route, bring, rain, url, uid):
-    """回傳 .ics 檔內容（bytes）。uid 同一場活動要固定不變，改期後重新匯入才會更新原本的活動。"""
+    """回傳 .ics 檔內容（bytes）。uid 用場次代碼，改期時不變，重新匯入才會更新原本的行事曆活動。"""
     details = '\n'.join(['本活動需事先報名，名額有限', f'集合：{place}', f'路線：{route}', f'記得帶：{bring}', rain, url])
     lines = [
         'BEGIN:VCALENDAR',

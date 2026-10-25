@@ -125,9 +125,10 @@ npm test
 | 檔案 | 用途 |
 |---|---|
 | `index.html`、`style.css`、`app.js` | 報名網頁 |
+| `calendar-time.js` | 加入行事曆的時間規則（沒填結束時間時怎麼算），跟 `tools/sync_event.py` 用同一份測試案例 |
 | `config.js` | Apps Script 網址 |
 | `apps-script/Code.gs` | 後端程式（複製到 Apps Script 用，GitHub Pages 不會執行它） |
-| `tests/` | 後端測試：在 Node 裡用假的 Google 服務載入 `Code.gs`，只透過對外介面驗證報名規則，並比對 `mock-api.js` 的規則是否一致。執行 `npm test` |
+| `tests/` | 後端測試：在 Node 裡用假的 Google 服務載入 `Code.gs`，只透過對外介面驗證報名規則，並比對 `mock-api.js` 的規則是否一致。執行 `npm test`。`tools/sync_event.py` 的測試另外執行 `python -m unittest discover -s tests -p "test_*.py"` |
 | `package.json` | 只用來放測試指令 `npm test`，沒有任何套件依賴 |
 | `.github/workflows/test.yml` | 每次推上 GitHub 時自動跑測試 |
 | `.github/workflows/event-check.yml` | 每天台灣時間 09:00 比對試算表和預覽圖、行事曆檔，對不上時 GitHub 寄信通知 |

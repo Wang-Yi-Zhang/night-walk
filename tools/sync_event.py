@@ -55,6 +55,13 @@ def parse_time(text):
     return f'{int(m[1]):02d}:{m[2]}' if m else None
 
 
+def default_end(start):
+    """沒填結束時間時用開始後 2 小時，最晚到當天 23:59。跟網頁 calendar-time.js 的 defaultEnd 相同。"""
+    h, mi = map(int, start.split(':'))
+    minutes = min(h * 60 + mi + 120, 23 * 60 + 59)
+    return f'{minutes // 60:02d}:{minutes % 60:02d}'
+
+
 class Event:
     """從公開資料整理出產生檔案需要的欄位。"""
 
@@ -66,9 +73,8 @@ class Event:
         self.day = parse_date(self.date_text)
         self.start = parse_time(ev.get('start'))
         self.end = parse_time(ev.get('end'))
-        if self.start and not self.end:  # 跟網頁一樣：沒填結束時間就當成 2 小時
-            h, mi = map(int, self.start.split(':'))
-            self.end = f'{min(h + 2, 23):02d}:{mi:02d}'
+        if self.start and not self.end:
+            self.end = default_end(self.start)
         self.place = ev.get('place') or ''
         self.route = ev.get('route') or ''
         self.fee = ev.get('fee') or ''
@@ -82,6 +88,8 @@ class Event:
 
     def problems(self):
         out = []
+        if not self.id:
+            out.append('「場次代碼」留空（行事曆檔要用它當 UID）')
         if not self.day:
             out.append('「活動日期」不是 2026-11-20 這種格式')
         if not self.start:
@@ -111,7 +119,7 @@ class Event:
     def ics(self):
         import make_ics
         return make_ics.build(self.iso, self.start, self.end, self.name, self.place, self.route,
-                              self.bring, self.rain, SITE_URL, self.id or self.iso)
+                              self.bring, self.rain, SITE_URL, self.id)
 
     def og_title(self):
         return f'{self.name}｜{self.md}{self.start}' + (f'（{self.badge}）' if self.badge else '')
@@ -190,9 +198,9 @@ def check(ev):
 
     want = ics_fields(ev.ics())
     have = ics_fields(ICS.read_bytes()) if ICS.exists() else {}
-    for key, label in (('DTSTART', '開始時間'), ('DTEND', '結束時間'), ('LOCATION', '集合地點')):
+    for key, label in (('UID', '場次代碼（UID）'), ('DTSTART', '開始時間'), ('DTEND', '結束時間'), ('LOCATION', '集合地點')):
         if have.get(key) != want[key]:
-            show = taipei if key != 'LOCATION' else str
+            show = taipei if key in ('DTSTART', 'DTEND') else str
             stale.append(f'event.ics 的{label}是「{show(have.get(key))}」，試算表是「{show(want[key])}」')
 
     page = INDEX.read_text(encoding='utf-8')

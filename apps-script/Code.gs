@@ -455,11 +455,16 @@ function toNonNegativeInt_(v, fallback) {
   return isNaN(n) || n < 0 ? fallback : n;
 }
 
-/** 解析 "YYYY-MM-DD HH:MM"（台灣時間），格式不對回傳 null。 */
+/**
+ * 解析 "YYYY-MM-DD HH:MM"（台灣時間），格式不對回傳 null。
+ * 沒有這一天（2/30）或時間超出範圍（25:00）也回傳 null，不自動進位，跟設定檢查的判斷一致。
+ */
 function parseTaipeiDateTime_(text) {
-  const m = String(text || '').trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})\s+(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
-  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 8, +m[5]));
+  const m = String(text || '').trim().match(/^(\S+)\s+(\S+)$/);
+  const day = m && parseYmd_(m[1]);
+  const time = m && parseHm_(m[2]);
+  if (!day || !time) return null;
+  return new Date(Date.UTC(day.y, day.m - 1, day.d, -8, time.minutes));
 }
 
 // ── 設定檢查 ────────────────────────────────────────────────────────
@@ -498,7 +503,7 @@ function settingsWarnings_(map) {
     const time = parts ? parseHm_(parts[2]) : null;
     if (!parts && day !== null) w['報名截止'] = '少了時間，報名不會自動截止。請改成像 2026-11-20 12:00 的格式';
     else if (day === null || !time) w['報名截止'] = '格式要像 2026-11-20 12:00，否則報名不會自動截止';
-    else if (!day) w['報名截止'] = '沒有這一天，請確認日期';
+    else if (!day) w['報名截止'] = '沒有這一天，報名不會自動截止。請確認日期';
     else if (date && start && Date.UTC(day.y, day.m - 1, day.d, 0, time.minutes) > Date.UTC(date.y, date.m - 1, date.d, 0, start.minutes)) {
       w['報名截止'] = '截止時間晚於活動開始時間';
     }

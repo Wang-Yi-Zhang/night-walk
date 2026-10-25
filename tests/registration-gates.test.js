@@ -108,6 +108,16 @@ test('截止時間留空或格式無法解析時，視為不截止（已知風�
   assert.strictEqual(h.get().event.deadline, '2026-10-23', '原始文字照樣公開');
 });
 
+test('截止時間是不存在的日期或時間時，視為不截止，不會進位成別的時間', () => {
+  // 進位的話，2026-02-30 會變成 3/2、25:00 會變成隔天 01:00，都早於這個時鐘而截止
+  const h = freshEvent({ now: Date.UTC(2026, 9, 25), tickMs: 0 });
+  for (const text of ['2026-02-30 12:00', '2026-10-23 25:00', '2026-10-23 24:00', '2026-10-23 12:60']) {
+    h.setSetting('報名截止', text);
+    assert.strictEqual(h.get().registration.open, true, text);
+    assert.match(h.checks()['報名截止'], /不會自動截止/, text + ' 的設定檢查提醒要跟實際行為一致');
+  }
+});
+
 test('拿不到寫入鎖時回傳 busy，不寫入', () => {
   const h = freshEvent();
   h.lock.available = false;

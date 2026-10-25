@@ -332,7 +332,7 @@
     if (!ev) return;
     const d = parseDate(ev.date);
     const t1 = parseTime(ev.start);
-    const t2 = parseTime(ev.end) || (t1 && { h: t1.h + 2, mi: t1.mi });
+    const t2 = parseTime(ev.end) || (t1 && window.NightWalkTime.defaultEnd(t1));
     if (!d || !t1) return;
 
     const title = ev.name + (ev.title ? '（' + ev.title + '）' : '');
