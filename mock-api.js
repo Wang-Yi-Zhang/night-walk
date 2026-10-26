@@ -4,7 +4,7 @@ window.NightWalkMock = function (scenario) {
 
   const settings = {
     id: '2026-10-26',
-    name: '麟光夜行・富陽生態公園',
+    name: '夜行・富陽生態公園',
     title: '第 1 場',
     date: '2026-10-26',
     start: '19:00',

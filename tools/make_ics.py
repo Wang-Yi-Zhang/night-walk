@@ -42,7 +42,7 @@ def main():
     ap.add_argument('--date', required=True, help='YYYY-MM-DD，與試算表「活動日期」相同')
     ap.add_argument('--start', default='19:00')
     ap.add_argument('--end', default='21:00')
-    ap.add_argument('--title', default='麟光夜行・富陽生態公園')
+    ap.add_argument('--title', default='夜行・富陽生態公園')
     ap.add_argument('--place', default='捷運麟光站 1 號出口')
     ap.add_argument('--route', default='富陽自然生態公園')
     ap.add_argument('--bring', default='手電筒、長袖長褲、鞋子（建議雨鞋）、愉快的心情')

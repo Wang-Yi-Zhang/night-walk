@@ -30,7 +30,7 @@ def font(name, size, variation):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--title', default='麟光夜行')
+    ap.add_argument('--title', default='夜行')
     ap.add_argument('--subtitle', default='富陽生態公園')
     ap.add_argument('--kicker', default='夜間生態觀察')
     ap.add_argument('--date', required=True, help='例如 2026/10/26（一）')

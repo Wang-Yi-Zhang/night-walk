@@ -1,7 +1,7 @@
 {
   "name": "night-walk",
   "private": true,
-  "description": "麟光夜行報名系統。只用 Node 內建功能測試後端，沒有任何套件依賴。",
+  "description": "夜行報名系統。只用 Node 內建功能測試後端，沒有任何套件依賴。",
   "engines": {
     "node": ">=22"
   },
