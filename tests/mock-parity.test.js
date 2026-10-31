@@ -65,7 +65,7 @@ test('公開狀態的欄位跟真正後端相同', async () => {
 
 test('每個預覽情境的能否報名、人數，跟同樣人數的真正後端相同', async () => {
   // '' 是網址只寫 ?mock 時的預設情境
-  for (const scenario of ['', 'empty', 'wait', 'hold', 'full', 'rain', 'deadline', 'notice']) {
+  for (const scenario of ['', 'empty', 'wait', 'hold', 'full', 'rain', 'deadline', 'notice', 'captcha']) {
     const mock = await loadMock(scenario).get();
     const real = backendLike(scenario, mock).get();
     eq(mock.registration, real.registration, '情境 ' + scenario);
@@ -104,6 +104,14 @@ test('格式錯誤的錯誤碼相同（輸入都已經過網頁整理）', async
   for (const c of cases) {
     const b = body(c);
     eq((await loadMock('empty').post(b)).error, freshEvent().post(b).error, JSON.stringify(c));
+  }
+});
+
+test('防機器人驗證：captcha 情境跟有密鑰、token 錯誤的真正後端相同；欄位錯誤仍先回報', async () => {
+  const real = () => freshEvent({ scriptProperties: { TURNSTILE_SECRET: 'secret' } });
+  for (const c of [{ nickname: '人', phone: phone(1) }, { nickname: '', phone: phone(1) }, { nickname: 'a', ig: 'dash-no' }]) {
+    const b = body(Object.assign({ turnstileToken: 'wrong' }, c));
+    eq((await loadMock('captcha').post(b)).error, real().post(b).error, JSON.stringify(c));
   }
 });
 

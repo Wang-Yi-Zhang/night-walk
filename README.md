@@ -28,9 +28,10 @@
 1. 在上方工具列的函式下拉選單選擇 **`setup`**，按 **▶ 執行**。
 2. 跳出「需要授權」時，按 **審查權限**，選擇你的帳號（hemoparasite@gmail.com）。
 3. 看到「**Google 尚未驗證這個應用程式**」是正常的，因為這個應用程式就是你自己建立的。按左下角 **進階**，再按 **前往「夜行報名」（不安全）**。
-4. **確認權限清單只有以下兩項**，再按「允許」：
+4. **確認權限清單只有以下三項**，再按「允許」：
    - 查看及管理已安裝此應用程式的試算表
    - 以你的名義傳送電子郵件
+   - 連線至外部服務（只用來向 Cloudflare 確認防機器人驗證）
 
    > ⚠️ 如果清單出現「讀取 Gmail」、「查看、編輯、建立及刪除你在 Google 雲端硬碟中的所有檔案」等其他權限，**請按取消並告訴 Claude**。
 5. 回到試算表，應該會看到「**設定**」和「**報名**」兩個分頁。重新整理試算表後，上方會出現「**🔦 夜行報名**」選單。
@@ -45,6 +46,22 @@
    - 誰可以存取：**所有人**（不是「所有已登入 Google 帳戶的使用者」）
 4. 按 **部署**，複製「網頁應用程式」的網址。網址開頭是 `https://script.google.com/macros/s/`，結尾是 `/exec`。
 5. **把這個網址交給 Claude**，由 Claude 接上網頁並做實際報名測試。如果要自己接，就把網址貼到 [`config.js`](config.js) 的 `apiUrl`。
+
+### 5. 啟用防機器人驗證（建議）
+沒做這一步也能報名，只是任何人都能直接打後端網址灌報名。請照順序做，任何一步出問題，報名都不會中斷：
+
+1. 到 [Cloudflare](https://dash.cloudflare.com/) 註冊（免費），左側選 **Turnstile → 新增小工具**。
+   - 主機名稱：`wang-yi-zhang.github.io`
+   - 小工具模式：**受管理（Managed）**
+2. 建立後會拿到兩把金鑰：
+   - **網站金鑰（site key）**：公開的，交給 Claude 貼到 [`config.js`](config.js) 的 `turnstileSiteKey`，推上 GitHub。
+   - **密鑰（secret key）**：**不要貼給任何人、不要放進試算表或 GitHub**。
+3. 確認新網頁已經上線後，到 Apps Script 左側 **⚙ 專案設定 → 指令碼屬性 → 新增指令碼屬性**：
+   - 屬性：`TURNSTILE_SECRET`
+   - 值：貼上密鑰
+4. 用手機（包括從 LINE 點開）實際報名一次，確認成功。
+
+**要停用驗證**：刪掉 `TURNSTILE_SECRET` 這個指令碼屬性就會立刻停用，不用重新部署。
 
 ---
 
@@ -106,10 +123,10 @@ npm test
 
 | 項目 | 做法 |
 |---|---|
-| Google 權限範圍 | `@OnlyCurrentDoc`：只能存取這一份試算表。用 `MailApp` 寄信：只能寄信，不能讀信 |
+| Google 權限範圍 | `@OnlyCurrentDoc`：只能存取這一份試算表。用 `MailApp` 寄信：只能寄信，不能讀信。用 `UrlFetchApp` 只連到 Cloudflare 驗證 |
 | 寄信對象 | 收件人寫死在程式碼裡（`NOTIFY_EMAIL`），外人無法利用它寄信給別人 |
 | 聯絡方式 | 公開 API 只回傳人數和暱稱，永遠不回傳手機、LINE ID、IG 帳號 |
-| 灌票、洗版 | 同一個手機、LINE ID 或 IG 帳號只能報一筆；每場最多寫入「正取上限 + 候補上限」筆；honeypot 防機器人；全站每分鐘最多 20 筆 |
+| 灌票、洗版 | 同一個手機、LINE ID 或 IG 帳號只能報一筆；每場最多寫入「正取上限 + 候補上限」筆；honeypot 和 Cloudflare Turnstile 防機器人（沒通過的請求不寫入、不占名額）；全站每分鐘最多 20 筆 |
 | 公式注入 | 所有使用者輸入都以純文字（`'` 前綴）寫入試算表 |
 | 網頁 XSS | 暱稱一律當純文字顯示 |
 | 同時送出 | 寫入時加鎖，不會超收 |
@@ -126,13 +143,13 @@ npm test
 |---|---|
 | `index.html`、`style.css`、`app.js` | 報名網頁 |
 | `calendar-time.js` | 加入行事曆的時間規則（沒填結束時間時怎麼算），跟 `tools/sync_event.py` 用同一份測試案例 |
-| `config.js` | Apps Script 網址 |
+| `config.js` | Apps Script 網址、Turnstile 網站金鑰 |
 | `apps-script/Code.gs` | 後端程式（複製到 Apps Script 用，GitHub Pages 不會執行它） |
 | `tests/` | 後端測試：在 Node 裡用假的 Google 服務載入 `Code.gs`，只透過對外介面驗證報名規則，並比對 `mock-api.js` 的規則是否一致。執行 `npm test`。`tools/sync_event.py` 的測試另外執行 `python -m unittest discover -s tests -p "test_*.py"` |
 | `package.json` | 只用來放測試指令 `npm test`，沒有任何套件依賴 |
 | `.github/workflows/test.yml` | 每次推上 GitHub 時自動跑測試 |
 | `.github/workflows/event-check.yml` | 每天台灣時間 09:00 比對試算表和預覽圖、行事曆檔，並確認正式後端部署的是最新的 `Code.gs`；對不上時 GitHub 寄信通知 |
-| `mock-api.js` | 本機預覽用的假資料：網址加 `?mock`、`?mock=wait`、`?mock=full`、`?mock=rain`、`?mock=deadline`、`?mock=notice` |
+| `mock-api.js` | 本機預覽用的假資料：網址加 `?mock`、`?mock=wait`、`?mock=full`、`?mock=rain`、`?mock=deadline`、`?mock=notice`、`?mock=captcha`（驗證一律沒通過）。再加 `&turnstile` 可用 Cloudflare 的測試金鑰試用驗證 |
 | `tools/sync_event.py` | 從試算表的公開資料重新產生 `og.png`、`event.ics` 和 `index.html` 的分享文字；加 `--check` 只檢查是否過期 |
 | `og.png` | LINE 分享預覽圖（畫圖的程式在 `tools/make_og.py`） |
 | `event.ics` | iPhone／Android「加入行事曆」用的檔案（產生的程式在 `tools/make_ics.py`）。日期時間跟試算表不一致時，網頁會自動隱藏這顆按鈕。要關閉按鈕，把 `config.js` 的 `appleCalendar` 改成 `false` |

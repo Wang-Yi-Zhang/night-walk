@@ -12,6 +12,13 @@
   const IN_LINE = /\bLine\//.test(navigator.userAgent); // LINE 內建瀏覽器
   // 「Apple／其他」按鈕：config.js 的 appleCalendar，或網址加 ?applecal 單獨測試
   const APPLE_ON = cfg.appleCalendar === true || params.has('applecal');
+  // 防機器人驗證：?mock 時改用 Cloudflare 的測試金鑰（一律通過），本機預覽才不會被網域擋下
+  const TURNSTILE_TEST_KEY = '1x00000000000000000000AA';
+  const TURNSTILE_KEY = MOCK
+    ? (cfg.turnstileSiteKey || params.has('turnstile') ? TURNSTILE_TEST_KEY : '')
+    : cfg.turnstileSiteKey || '';
+  const TURNSTILE_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+  const TOKEN_WAIT_MS = 10000;
 
   const $ = id => document.getElementById(id);
 
@@ -53,6 +60,57 @@
       s.onerror = reject;
       document.head.appendChild(s);
     });
+  }
+
+  // ── 防機器人驗證（Cloudflare Turnstile） ────────────────
+  // 載入頁面時就在背景取得 token，大多數人不用點任何東西；需要互動時才顯示勾選框。
+  // token 只能用一次，每次送出後重新取得。
+
+  const turnstile = {
+    id: null,
+    token: '',
+    waiters: [],
+    setToken(t) {
+      this.token = t || '';
+      if (!this.token) return;
+      this.waiters.forEach(fn => fn(this.token));
+      this.waiters = [];
+    },
+    /** 最多等 ms 毫秒；沒啟用或等不到時回傳空字串，交給後端決定。 */
+    wait(ms) {
+      if (this.id === null || this.token) return Promise.resolve(this.token);
+      return new Promise(resolve => {
+        const done = t => { clearTimeout(timer); resolve(t); };
+        const timer = setTimeout(() => {
+          this.waiters = this.waiters.filter(fn => fn !== done);
+          resolve('');
+        }, ms);
+        this.waiters.push(done);
+      });
+    },
+    reset() {
+      this.token = '';
+      if (this.id !== null) window.turnstile.reset(this.id);
+    },
+  };
+
+  async function initTurnstile() {
+    const box = $('turnstile-box');
+    try {
+      await loadScript(TURNSTILE_SRC);
+      turnstile.id = window.turnstile.render(box, {
+        sitekey: TURNSTILE_KEY,
+        language: 'zh-tw',
+        appearance: 'interaction-only',
+        callback: t => turnstile.setToken(t),
+        'expired-callback': () => turnstile.setToken(''),
+        'error-callback': () => turnstile.setToken(''),
+        'before-interactive-callback': () => box.classList.add('show'),
+        'after-interactive-callback': () => box.classList.remove('show'),
+      });
+    } catch (err) {
+      /* 載入失敗（例如被擋廣告的外掛擋下）：照樣送出，由後端決定 */
+    }
   }
 
   // ── 本機記憶（只存在這支手機的瀏覽器） ───────────────
@@ -498,7 +556,8 @@
     btn.textContent = '送出中…';
 
     try {
-      const res = await api.post({ nickname, phone, line, ig, message, website: $('f-website').value });
+      const turnstileToken = await turnstile.wait(TOKEN_WAIT_MS);
+      const res = await api.post({ nickname, phone, line, ig, message, website: $('f-website').value, turnstileToken });
       if (res && res.ok) {
         store.write(state.event.id, { nickname: res.nickname, status: res.status, position: res.position, at: Date.now() });
         success = res;
@@ -518,6 +577,7 @@
     } catch (err) {
       setFormError('送出失敗，請檢查網路後再試一次。如果一直失敗，請直接聯絡主辦。');
     } finally {
+      turnstile.reset();
       submitting = false;
       btn.disabled = false;
       if (btn.textContent === '送出中…') btn.textContent = label;
@@ -609,6 +669,7 @@
     bind();
     updateCounter();
     if (APPLE_ON) loadIcsInfo();
+    if (TURNSTILE_KEY) initTurnstile();
     if (MOCK) {
       await loadScript('mock-api.js');
       api = window.NightWalkMock(params.get('mock'));

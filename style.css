@@ -427,6 +427,13 @@ input[aria-invalid="true"] { border-color: var(--danger); }
   overflow: hidden;
 }
 
+/* 防機器人驗證：平常看不到，需要互動時才留出空間 */
+.turnstile.show {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 12px;
+}
+
 .form-error {
   margin: 0 0 12px;
   padding: 10px 12px;

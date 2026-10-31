@@ -12,7 +12,7 @@ test('資料格式錯誤：不是 JSON、空的、過大、沒有 postData', () 
   assert.strictEqual(h.postRaw('not json').error, 'invalid');
   assert.strictEqual(h.postRaw('').error, 'invalid');
   assert.strictEqual(h.postRaw(undefined).error, 'invalid');
-  assert.strictEqual(h.postRaw(JSON.stringify({ nickname: 'a', phone: '0912345678', message: 'x'.repeat(2000) })).error, 'invalid');
+  assert.strictEqual(h.postRaw(JSON.stringify({ nickname: 'a', phone: '0912345678', message: 'x'.repeat(4000) })).error, 'invalid');
   assert.strictEqual(h.postRaw('null').error, 'nickname', 'null 當成空物件處理');
   const r = h.postRaw('not json');
   assert.strictEqual(r.ok, false);

@@ -8,6 +8,7 @@
  * 權限刻意壓到最小：
  *   - @OnlyCurrentDoc：只能存取「這一份」試算表
  *   - 只用 MailApp 寄信給固定收件人（NOTIFY_EMAIL），不能讀信、不能寄給別人
+ *   - 只用 UrlFetchApp 連到 Cloudflare 驗證 Turnstile token
  *
  * @OnlyCurrentDoc
  */
@@ -18,7 +19,7 @@ const NOTIFY_EMAIL = 'hemoparasite@gmail.com';
 // 這份程式的版本：本檔其餘內容的雜湊值，放在公開資料的 version，
 // 讓 tools/sync_event.py --check 確認正式後端部署的就是 repo 裡這一版。
 // 改了這個檔案，npm test 會印出新的值；更新後要重新部署。
-const CODE_VERSION = '7aebc1adddff';
+const CODE_VERSION = '3ca433990251';
 
 const SETTINGS_SHEET = '設定';
 const SIGNUP_SHEET = '報名';
@@ -48,7 +49,14 @@ const CHECK_COLOR = '#f8d7da';
 const CACHE_KEY = 'public-state-v1';
 const CACHE_SECONDS = 30;
 const RATE_LIMIT_PER_MINUTE = 20;
-const MAX_BODY_LENGTH = 2000;
+// Turnstile 的 token 最長 2048 字元，加上其他欄位
+const MAX_BODY_LENGTH = 4000;
+
+// 防機器人驗證（Cloudflare Turnstile）。密鑰放在「專案設定 → 指令碼屬性」，
+// 不放試算表、不進 repo；沒設定時跳過驗證，所以能先部署、再啟用。
+const TURNSTILE_SECRET_PROPERTY = 'TURNSTILE_SECRET';
+const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+const TURNSTILE_TOKEN_MAX = 2048;
 const NICKNAME_MAX = 12;
 const MESSAGE_MAX = 200;
 
@@ -138,6 +146,11 @@ function handleSignup_(body) {
   }
   if (Array.from(message).length > MESSAGE_MAX) return fail_('message', '給主辦的話請在 ' + MESSAGE_MAX + ' 字以內。');
 
+  // 在上鎖之前驗證：沒通過的請求拿不到鎖，也不計入每分鐘的報名次數
+  const captcha = verifyTurnstile_(body.turnstileToken);
+  if (captcha === 'unavailable') return fail_('captcha', '暫時無法完成防機器人驗證，請稍後再試，或直接聯絡主辦。');
+  if (captcha !== 'pass') return fail_('captcha', '沒有通過防機器人驗證，請重新整理頁面再試一次。如果一直失敗，請直接聯絡主辦。');
+
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) return fail_('busy', '目前報名人數較多，請稍等幾秒再送出一次。');
 
@@ -204,6 +217,38 @@ function findDuplicateContact_(rows, contact) {
     if (rows.some(r => r[key] && normalize[key](r[key]) === contact[key])) return key;
   }
   return null;
+}
+
+/**
+ * 向 Cloudflare 確認 Turnstile token，回傳 'pass'、'fail' 或 'unavailable'（連不上 Cloudflare）。
+ * 沒設定密鑰時一律 'pass'。連不上時不放行，否則攻擊者只要讓驗證出錯就能繞過。
+ */
+function verifyTurnstile_(token) {
+  const secret = PropertiesService.getScriptProperties().getProperty(TURNSTILE_SECRET_PROPERTY);
+  if (!secret) return 'pass';
+  const response = typeof token === 'string' ? token : '';
+  if (!response || response.length > TURNSTILE_TOKEN_MAX) return 'fail';
+  let res;
+  try {
+    res = UrlFetchApp.fetch(TURNSTILE_VERIFY_URL, {
+      method: 'post',
+      payload: { secret: secret, response: response },
+      muteHttpExceptions: true,
+    });
+  } catch (err) {
+    console.error('turnstile unreachable', err);
+    return 'unavailable';
+  }
+  if (res.getResponseCode() !== 200) {
+    console.error('turnstile http ' + res.getResponseCode());
+    return 'unavailable';
+  }
+  try {
+    return JSON.parse(res.getContentText()).success === true ? 'pass' : 'fail';
+  } catch (err) {
+    console.error('turnstile bad response', err);
+    return 'unavailable';
+  }
 }
 
 function notifyOrganizer_(settings, result, contact, message, counts) {

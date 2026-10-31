@@ -129,6 +129,9 @@
           <input id="f-website" name="website" type="text" tabindex="-1" autocomplete="off">
         </div>
 
+        <!-- 防機器人驗證（config.js 有 turnstileSiteKey 才啟用），需要互動時才看得到 -->
+        <div id="turnstile-box" class="turnstile"></div>
+
         <p id="form-error" class="form-error" role="alert" hidden></p>
         <button id="submit" class="btn btn-primary" type="submit">送出報名</button>
         <p class="privacy">你填寫的聯絡方式（手機、LINE ID、IG 帳號）僅供主辦者聯絡本場活動使用（如集合、取消通知），不會公開或提供給他人。公開暱稱將顯示於本頁報名清單。聯絡方式將於活動結束後一個月內刪除。送出即表示你同意以上說明。</p>

@@ -37,6 +37,7 @@ window.NightWalkMock = function (scenario) {
     case 'rain': seed(8, '正取'); settings.status = '因雨取消'; settings.statusNote = '15:00 降雨機率 80%，本場取消，改期另行通知。'; break;
     case 'deadline': seed(7, '正取'); deadlinePassed = true; break;
     case 'notice': seed(3, '正取'); settings.statusNote = '原訂 10/23（五）因颱風改期至 10/26（一），時間地點不變。'; break;
+    case 'captcha': seed(6, '正取'); break; // 送出時一律沒通過防機器人驗證
     default: seed(6, '正取');
   }
 
@@ -83,6 +84,8 @@ window.NightWalkMock = function (scenario) {
       if (contact.phone && !/^09\d{8}$/.test(contact.phone)) return { ok: false, error: 'phone', message: '手機號碼格式不正確，請填 09 開頭的 10 碼數字。' };
       if (contact.line && !/^[a-z0-9._-]{4,20}$/.test(contact.line)) return { ok: false, error: 'line', message: '這看起來不是 LINE ID。' };
       if (contact.ig && !/^[a-z0-9._]{1,30}$/.test(contact.ig)) return { ok: false, error: 'ig', message: 'IG 帳號只能有英文、數字、句點和底線。' };
+      // 其他情境相當於後端還沒設定 Turnstile 密鑰：不檢查 token
+      if (scenario === 'captcha') return { ok: false, error: 'captcha', message: '沒有通過防機器人驗證，請重新整理頁面再試一次。' };
       const labels = { phone: '這支手機', line: '這個 LINE ID ', ig: '這個 IG 帳號' };
       for (const key of ['phone', 'line', 'ig']) {
         if (contact[key] && rows.some(r => r[key] === contact[key])) {

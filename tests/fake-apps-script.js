@@ -122,6 +122,7 @@ function makeSheet(name) {
  *   now     起始時間（毫秒），預設 DEFAULT_NOW
  *   tickMs  每次 post() 之後時鐘前進多少，預設 5 秒（模擬真實請求間隔，不會撞到每分鐘 20 筆的限制）
  *   sheets  起始分頁名稱，預設是新試算表的「工作表1」
+ *   scriptProperties  起始的指令碼屬性，例如 { TURNSTILE_SECRET: 'secret' }；預設沒有
  */
 function loadBackend(options = {}) {
   const clock = { now: options.now ?? DEFAULT_NOW };
@@ -160,6 +161,14 @@ function loadBackend(options = {}) {
 
   const lock = { available: true, held: false };
   const mail = { sent: [], fail: false };
+  // 指令碼屬性（例如 TURNSTILE_SECRET）
+  const props = new Map(Object.entries(options.scriptProperties ?? {}));
+  // 對外連線：預設模擬 Cloudflare，token 是 'pass' 才通過。測試可以換掉 respond：
+  // 回傳 { code, body }（body 是物件時轉成 JSON），丟出錯誤代表連不上
+  const fetches = {
+    calls: [],
+    respond: (url, params) => ({ code: 200, body: { success: params.payload.response === 'pass' } }),
+  };
   const ui = { answer: 'YES', alerts: [] };
   const logs = [];
 
@@ -191,6 +200,17 @@ function loadBackend(options = {}) {
       sendEmail: m => {
         if (mail.fail) throw new Error('Service invoked too many times for one day: email.');
         mail.sent.push(m);
+      },
+    },
+    PropertiesService: {
+      getScriptProperties: () => ({ getProperty: k => (props.has(k) ? props.get(k) : null) }),
+    },
+    UrlFetchApp: {
+      fetch: (url, params) => {
+        fetches.calls.push({ url, params });
+        const r = fetches.respond(url, params);
+        const text = typeof r.body === 'string' ? r.body : JSON.stringify(r.body);
+        return { getResponseCode: () => r.code, getContentText: () => text };
       },
     },
     ContentService: {
@@ -234,6 +254,8 @@ function loadBackend(options = {}) {
     clock,
     lock,
     mail,
+    props,
+    fetches,
     ui,
     logs,
     toasts,
