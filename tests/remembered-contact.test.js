@@ -1,4 +1,4 @@
-// 「在這支手機記住我的資料」（remembered-contact.js）：只存在報名者的瀏覽器，下次報名自動帶入。
+// 「在這台裝置的瀏覽器記住我的資料」（remembered-contact.js）：只存在報名者的瀏覽器，下次報名自動帶入。
 'use strict';
 
 const { test } = require('node:test');
@@ -123,11 +123,11 @@ test('只改了一種聯絡方式也算不同', () => {
   assert.strictEqual(r.prompt(ME, Object.assign({}, ME)), null);
 });
 
-test('網頁有載入這支程式，個資說明有寫記住的資料只存在這支手機', () => {
+test('網頁有載入這支程式，個資說明有寫記住的資料只存在這台裝置的瀏覽器', () => {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const scripts = [...html.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
   assert.ok(scripts.indexOf('remembered-contact.js') >= 0);
   assert.ok(scripts.indexOf('remembered-contact.js') < scripts.indexOf('app.js'), '要在 app.js 之前載入');
   const privacy = /<p class="privacy">([^<]+)<\/p>/.exec(html)[1];
-  assert.match(privacy, /只存在這支手機的瀏覽器，主辦看不到，可隨時清除/);
+  assert.match(privacy, /只存在這台裝置的瀏覽器，主辦看不到，可隨時清除/);
 });

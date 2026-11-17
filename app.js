@@ -118,7 +118,7 @@
     }
   }
 
-  // ── 本機記憶（只存在這支手機的瀏覽器） ───────────────
+  // ── 本機記憶（只存在這台裝置的瀏覽器） ───────────────
 
   const store = {
     key: id => 'night-walk:' + id,
@@ -326,7 +326,7 @@
     }
   }
 
-  // ── 在這支手機記住我的資料 ─────────────────────────
+  // ── 在這台裝置的瀏覽器記住我的資料 ─────────────────────────
 
   /** 有些瀏覽器光是讀 localStorage 就會出錯（例如封鎖 Cookie 時），這時當成沒有記住任何資料。 */
   function storage() {
@@ -369,8 +369,8 @@
     if (!rememberAsk) return;
     const replace = rememberAsk === 'replace';
     $('remember-q').textContent = replace
-      ? '這支手機記住的是另一份資料，要換成這次填的嗎？'
-      : '要在這支手機記住你的暱稱和聯絡方式，下次報名自動帶入嗎？';
+      ? '這台裝置的瀏覽器記住的是另一份資料，要換成這次填的嗎？'
+      : '要在這台裝置的瀏覽器記住你的暱稱和聯絡方式，下次報名自動帶入嗎？';
     const yes = $('remember-yes');
     const no = $('remember-no');
     yes.textContent = replace ? '換成這次的' : '記住';

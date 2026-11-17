@@ -142,7 +142,7 @@ npm test
 | 檔案 | 用途 |
 |---|---|
 | `index.html`、`style.css`、`app.js` | 報名網頁 |
-| `remembered-contact.js` | 「在這支手機記住我的資料」：報名者選擇記住時，把暱稱和聯絡方式存在自己的瀏覽器，下次報名自動帶入。不送到後端 |
+| `remembered-contact.js` | 「在這台裝置的瀏覽器記住我的資料」：報名者選擇記住時，把暱稱和聯絡方式存在自己的瀏覽器，下次報名自動帶入。不送到後端 |
 | `calendar-time.js` | 加入行事曆的時間規則（沒填結束時間時怎麼算），跟 `tools/sync_event.py` 用同一份測試案例 |
 | `config.js` | Apps Script 網址、Turnstile 網站金鑰 |
 | `apps-script/Code.gs` | 後端程式（複製到 Apps Script 用，GitHub Pages 不會執行它） |

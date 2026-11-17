@@ -589,7 +589,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 
 .success > .btn-ghost { width: 100%; }
 
-/* ── 在這支手機記住我的資料 ───────────────────── */
+/* ── 在這台裝置的瀏覽器記住我的資料 ───────────────────── */
 
 .prefill-note {
   margin: 0 0 16px;
