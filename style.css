@@ -474,6 +474,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
   color: var(--text);
 }
 .btn-small { min-height: 44px; font-size: 15px; font-weight: 500; padding: 8px 14px; }
+.btn-accent { background: var(--accent); color: var(--accent-ink); }
 
 .privacy {
   margin: 14px 0 0;
@@ -586,7 +587,31 @@ input[aria-invalid="true"] { border-color: var(--danger); }
   font-size: 14px;
 }
 
-.success .btn-ghost { width: 100%; }
+.success > .btn-ghost { width: 100%; }
+
+/* ── 在這支手機記住我的資料 ───────────────────── */
+
+.prefill-note {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--leaf-soft);
+  font-size: 14px;
+}
+.prefill-note .link-btn { margin: 0 0 0 6px; }
+
+.remember-box {
+  margin: 0 0 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-2);
+  text-align: left;
+}
+.remember-q { margin: 0 0 10px; font-size: 15px; }
+.remember-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.remember-note { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.remember-done { margin: 0 0 16px; font-size: 14px; color: var(--leaf); }
 
 /* ── Info cards ───────────────────────────────── */
 

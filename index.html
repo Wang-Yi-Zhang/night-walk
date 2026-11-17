@@ -25,6 +25,7 @@
   <link rel="stylesheet" href="style.css">
   <script src="config.js" defer></script>
   <script src="calendar-time.js" defer></script>
+  <script src="remembered-contact.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -93,6 +94,7 @@
       <form id="view-form" class="view form" novalidate hidden>
         <h2 id="form-title" class="card-h">我要報名</h2>
         <p id="form-hint" class="muted form-hint" hidden></p>
+        <p id="prefill-note" class="prefill-note" hidden>已帶入上次的資料（暱稱：<b id="prefill-name"></b>），可以直接修改。<button id="prefill-clear" class="link-btn" type="button">清除</button></p>
 
         <div class="field">
           <label for="f-nickname">公開暱稱 <span class="req">必填</span></label>
@@ -134,7 +136,7 @@
 
         <p id="form-error" class="form-error" role="alert" hidden></p>
         <button id="submit" class="btn btn-primary" type="submit">送出報名</button>
-        <p class="privacy">你填寫的聯絡方式（手機、LINE ID、IG 帳號）僅供主辦者聯絡本場活動使用（如集合、取消通知），不會公開或提供給他人。公開暱稱將顯示於本頁報名清單。聯絡方式將於活動結束後一個月內刪除。送出即表示你同意以上說明。</p>
+        <p class="privacy">你填寫的聯絡方式（手機、LINE ID、IG 帳號）僅供主辦者聯絡本場活動使用（如集合、取消通知），不會公開或提供給他人。公開暱稱將顯示於本頁報名清單。聯絡方式將於活動結束後一個月內刪除。若你選擇在這支手機記住資料，資料只存在這支手機的瀏覽器，主辦看不到，可隨時清除。送出即表示你同意以上說明。</p>
       </form>
 
       <div id="view-success" class="view success" hidden>
@@ -148,6 +150,15 @@
         </dl>
         <div class="cal-buttons" data-cal></div>
         <p class="screenshot-tip">📸 建議截圖本畫面。如需取消，請 LINE 或 Email 主辦。</p>
+        <div id="remember-box" class="remember-box" hidden>
+          <p id="remember-q" class="remember-q"></p>
+          <div class="remember-actions">
+            <button id="remember-yes" class="btn btn-small btn-ghost" type="button"></button>
+            <button id="remember-no" class="btn btn-small btn-ghost" type="button">不用</button>
+          </div>
+          <p class="remember-note">只存在這支手機的瀏覽器，主辦看不到，可隨時清除。</p>
+        </div>
+        <p id="remember-done" class="remember-done" hidden></p>
         <button id="back-to-page" class="btn btn-ghost" type="button">回到活動頁</button>
       </div>
     </section>

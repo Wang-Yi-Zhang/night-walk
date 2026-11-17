@@ -31,6 +31,11 @@
   let submitting = false;
   let icsInfo = null; // event.ics 的開始／結束時間（UTC），讀不到就是 null
   let icsHint = null; // LINE 裡按過「Apple／其他」後的提示：{ container, copied }
+  const remember = window.NightWalkRemember;
+  let prefilled = false; // 這次開啟網頁已經自動帶入過，就不再覆蓋報名者改過的欄位
+  let rememberAsk = null; // 成功畫面要問的：'save'、'replace' 或 null
+  let rememberDone = ''; // 回答後顯示的一句話
+  let submitted = null; // 這次送出的暱稱和聯絡方式（已整理格式），給「記住」用
 
   // ── API ──────────────────────────────────────────
 
@@ -315,7 +320,72 @@
       hint.hidden = true;
       $('submit').textContent = '送出報名';
     }
-    if (form.hidden) show('view-form');
+    if (form.hidden) {
+      prefillForm();
+      show('view-form');
+    }
+  }
+
+  // ── 在這支手機記住我的資料 ─────────────────────────
+
+  /** 有些瀏覽器光是讀 localStorage 就會出錯（例如封鎖 Cookie 時），這時當成沒有記住任何資料。 */
+  function storage() {
+    try { return window.localStorage; } catch (e) { return null; }
+  }
+
+  const PREFILL_INPUTS = { nickname: 'f-nickname', phone: 'f-phone', line: 'f-line', ig: 'f-ig' };
+
+  /** 自動帶入記住的資料。幫朋友報名時不帶入（帶入自己的資料只會被擋成重複報名）。 */
+  function prefillForm() {
+    const note = $('prefill-note');
+    if (forceForm || prefilled) {
+      if (forceForm) note.hidden = true;
+      return;
+    }
+    const rec = remember.read(storage(), Date.now());
+    const empty = Object.keys(PREFILL_INPUTS).every(f => !$(PREFILL_INPUTS[f]).value);
+    if (!rec || !empty) return;
+    Object.keys(PREFILL_INPUTS).forEach(f => { $(PREFILL_INPUTS[f]).value = rec[f]; });
+    $('prefill-name').textContent = rec.nickname;
+    note.hidden = false;
+    prefilled = true;
+    updateCounter();
+  }
+
+  function clearRemembered() {
+    remember.clear(storage());
+    Object.keys(PREFILL_INPUTS).forEach(f => { $(PREFILL_INPUTS[f]).value = ''; });
+    $('prefill-note').hidden = true;
+    updateCounter();
+    $('f-nickname').focus();
+  }
+
+  function renderRemember() {
+    const box = $('remember-box');
+    const done = $('remember-done');
+    done.textContent = rememberDone;
+    done.hidden = !rememberDone;
+    box.hidden = !rememberAsk;
+    if (!rememberAsk) return;
+    const replace = rememberAsk === 'replace';
+    $('remember-q').textContent = replace
+      ? '這支手機記住的是另一份資料，要換成這次填的嗎？'
+      : '要在這支手機記住你的暱稱和聯絡方式，下次報名自動帶入嗎？';
+    const yes = $('remember-yes');
+    const no = $('remember-no');
+    yes.textContent = replace ? '換成這次的' : '記住';
+    // 換掉時預設「不用」（多半是幫朋友報名）；第一次記住時「記住」才是主要按鈕
+    yes.classList.toggle('btn-ghost', replace);
+    yes.classList.toggle('btn-accent', !replace);
+    no.classList.toggle('btn-ghost', !replace);
+    no.classList.toggle('btn-accent', replace);
+  }
+
+  function answerRemember(keep) {
+    if (keep && submitted) remember.save(storage(), submitted, Date.now());
+    rememberDone = keep ? '已記住，下次報名會自動帶入。' : '';
+    rememberAsk = null;
+    renderRemember();
   }
 
   function renderClosed(s, reason) {
@@ -380,6 +450,7 @@
     );
     $('ticket-nickname').textContent = success.nickname;
     renderCalendar($('view-success').querySelector('[data-cal]'), ev);
+    renderRemember();
     show('view-success');
   }
 
@@ -560,6 +631,10 @@
       const res = await api.post({ nickname, phone, line, ig, message, website: $('f-website').value, turnstileToken });
       if (res && res.ok) {
         store.write(state.event.id, { nickname: res.nickname, status: res.status, position: res.position, at: Date.now() });
+        submitted = { nickname, phone, line, ig };
+        rememberAsk = remember.afterSignup(storage(), submitted, Date.now());
+        rememberDone = '';
+        $('prefill-note').hidden = true;
         success = res;
         view = 'success';
         forceForm = false;
@@ -626,6 +701,9 @@
   function bind() {
     $('view-form').addEventListener('submit', onSubmit);
     $('f-nickname').addEventListener('input', updateCounter);
+    $('prefill-clear').addEventListener('click', clearRemembered);
+    $('remember-yes').addEventListener('click', () => answerRemember(true));
+    $('remember-no').addEventListener('click', () => answerRemember(false));
     $('retry').addEventListener('click', () => { show('view-loading'); refresh(); });
 
     $('roster-toggle').addEventListener('click', () => {
