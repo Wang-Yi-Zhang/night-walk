@@ -12,6 +12,12 @@
   const IN_LINE = /\bLine\//.test(navigator.userAgent); // LINE 內建瀏覽器
   // 「Apple／其他」按鈕：config.js 的 appleCalendar，或網址加 ?applecal 單獨測試
   const APPLE_ON = cfg.appleCalendar === true || params.has('applecal');
+  // iPhone／iPad（iPadOS 會自稱 Macintosh，用觸控點判斷）
+  const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+    (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  // LINE 裡用 x-safari-https:// 直接打開 Safari：還在實測，網址加 ?safarical 才啟用
+  const SAFARI_JUMP = IN_LINE && IS_IOS && params.has('safarical');
+  const SAFARI_WAIT_MS = 1500; // 這段時間內網頁沒轉到背景，就當作沒打開 Safari
   // 防機器人驗證：?mock 時改用 Cloudflare 的測試金鑰（一律通過），本機預覽才不會被網域擋下
   const TURNSTILE_TEST_KEY = '1x00000000000000000000AA';
   const TURNSTILE_KEY = MOCK
@@ -30,7 +36,7 @@
   let forceForm = false;
   let submitting = false;
   let icsInfo = null; // event.ics 的開始／結束時間（UTC），讀不到就是 null
-  let icsHint = null; // LINE 裡按過「Apple／其他」後的提示：{ container, copied }
+  let icsHint = null; // LINE 裡按過「Apple／其他」後的提示：{ container, copied, fallback }
   const remember = window.NightWalkRemember;
   let prefilled = false; // 這次開啟網頁已經自動帶入過，就不再覆蓋報名者改過的欄位
   let rememberAsk = null; // 成功畫面要問的：'save'、'replace' 或 null
@@ -497,24 +503,27 @@
     const icsUrl = new URL(ICS_PATH, location.href).toString();
     const buttons = [gBtn];
     if (icsMatches) {
-      const iBtn = document.createElement(IN_LINE ? 'button' : 'a');
+      const iBtn = document.createElement(IN_LINE && !SAFARI_JUMP ? 'button' : 'a');
       iBtn.className = 'btn btn-ghost btn-small';
       iBtn.textContent = '🗓 Apple／其他';
-      if (IN_LINE) {
+      if (SAFARI_JUMP) {
+        // 用 x-safari-https:// 叫出 Safari，由報名者在 Safari 的行事曆預覽決定要不要加入。
+        // 沒有正式文件、LINE 也可能擋掉，而且失敗時不會有任何反應，所以沒離開網頁就改成複製連結。
+        iBtn.href = icsUrl.replace(/^https:\/\//, 'x-safari-https://');
+        iBtn.addEventListener('click', () => {
+          let left = false;
+          const onHide = () => { if (document.visibilityState === 'hidden') left = true; };
+          document.addEventListener('visibilitychange', onHide);
+          setTimeout(() => {
+            document.removeEventListener('visibilitychange', onHide);
+            if (!left) copyIcsLink(container, icsUrl, true);
+          }, SAFARI_WAIT_MS);
+        });
+      } else if (IN_LINE) {
         // LINE 內建瀏覽器會把 .ics 交給 iPhone 當「訂閱行事曆」處理並改用 http，一定失敗
         // （openExternalBrowser=1 對網頁裡的連結無效）。改成複製連結，請報名者貼到 Safari。
         iBtn.type = 'button';
-        iBtn.addEventListener('click', async () => {
-          let copied = false;
-          try {
-            await navigator.clipboard.writeText(icsUrl);
-            copied = true;
-          } catch (err) {
-            /* 不能自動複製就顯示連結讓報名者自己複製 */
-          }
-          icsHint = { container, copied };
-          renderIcsHint(container, icsUrl, !copied);
-        });
+        iBtn.addEventListener('click', () => copyIcsLink(container, icsUrl, false));
       } else {
         iBtn.href = icsUrl;
       }
@@ -526,13 +535,28 @@
     if (icsMatches && IN_LINE && icsHint && icsHint.container === container) renderIcsHint(container, icsUrl, false);
   }
 
+  // fallback：試過直接打開 Safari 但沒成功
+  // 注意：iOS 只在報名者剛點擊時允許自動複製，1.5 秒後才複製通常會失敗，這時會改成顯示連結讓人自己複製。
+  async function copyIcsLink(container, icsUrl, fallback) {
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(icsUrl);
+      copied = true;
+    } catch (err) {
+      /* 不能自動複製就顯示連結讓報名者自己複製 */
+    }
+    icsHint = { container, copied, fallback };
+    renderIcsHint(container, icsUrl, !copied);
+  }
+
   function renderIcsHint(container, icsUrl, focus) {
     const hint = document.createElement('div');
     hint.className = 'cal-hint';
     const p = document.createElement('p');
+    const lead = icsHint.fallback ? '沒有自動打開 Safari 的話：' : 'LINE 裡無法直接加入。';
     p.textContent = icsHint.copied
-      ? '已複製行事曆連結。LINE 裡無法直接加入，請打開 Safari，把連結貼到網址列開啟，再按「加入行事曆」。'
-      : 'LINE 裡無法直接加入。請複製下面的連結，打開 Safari 貼到網址列開啟，再按「加入行事曆」。';
+      ? (icsHint.fallback ? lead + '已複製行事曆連結，' : '已複製行事曆連結。' + lead) + '請打開 Safari，把連結貼到網址列開啟，再按「加入行事曆」。'
+      : lead + '請複製下面的連結，打開 Safari 貼到網址列開啟，再按「加入行事曆」。';
     const input = document.createElement('input');
     input.type = 'text';
     input.readOnly = true;
