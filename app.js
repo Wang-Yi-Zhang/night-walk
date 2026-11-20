@@ -15,8 +15,8 @@
   // iPhone／iPad（iPadOS 會自稱 Macintosh，用觸控點判斷）
   const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
     (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-  // LINE 裡用 x-safari-https:// 直接打開 Safari：還在實測，網址加 ?safarical 才啟用
-  const SAFARI_JUMP = IN_LINE && IS_IOS && params.has('safarical');
+  // iPhone 的 LINE 裡用 x-safari-https:// 直接打開 Safari（2026-11-20 真機實測可行）
+  const SAFARI_JUMP = IN_LINE && IS_IOS;
   const SAFARI_WAIT_MS = 1500; // 這段時間內網頁沒轉到背景，就當作沒打開 Safari
   // 防機器人驗證：?mock 時改用 Cloudflare 的測試金鑰（一律通過），本機預覽才不會被網域擋下
   const TURNSTILE_TEST_KEY = '1x00000000000000000000AA';

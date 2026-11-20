@@ -6,4 +6,4 @@
 
 - **網頁用 data: 或 Blob 臨時產生 .ics**：iOS 不接受網頁臨時產生的行事曆檔。
 - **LINE 內建瀏覽器直接開 .ics**：LINE 會把它當成「訂閱行事曆」並改用 http，GitHub Pages 轉址後訂閱失敗（iOS 26 實測）。所以在 LINE 裡改成複製連結、請報名者貼到 Safari。
-- **LINE 裡用 `x-safari-https://` 直接打開 Safari**（iPhone 限定，iOS 17 起）：Apple 沒有正式文件，LINE 可能擋掉，失敗時網頁不會有任何反應。目前網址加 `?safarical` 才啟用，按下 1.5 秒後網頁還在前景就改成複製連結。真機實測結果（iOS／LINE 版本）：尚未測試。
+- **LINE 裡用 `x-safari-https://` 直接打開 Safari**（iPhone 限定，iOS 17 起）：Apple 沒有正式文件，LINE 可能擋掉，失敗時網頁不會有任何反應。2026-11-20 在 iPhone 的 LINE 實測可以直接跳到 Safari，所以 iPhone 的 LINE 一律用這個做法；按下 1.5 秒後網頁還在前景，就改成複製連結當備案（給 iOS 16 以下或之後 LINE 擋掉的情況）。Android 的 LINE 維持複製連結。
