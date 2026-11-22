@@ -255,7 +255,8 @@
 - **加入行事曆**：Google 日曆用預填連結，時區為台北。Apple／其他行事曆連到網站上**真實存在**的 `.ics` 檔（iOS 不接受網頁臨時產生的檔案）。網頁會先讀取該檔案的開始與結束時間，**與目前設定一致才顯示按鈕**，否則只顯示 Google 日曆。結束時間留空時，當成開始後 2 小時，最晚到當天 23:59；網頁（`calendar-time.js`）和產生 `.ics` 的工具各有一份這條規則，由 `tests/default-end-cases.json` 的同一份案例分別測試。按鈕出現在報名成功畫面、已報名畫面，以及「活動資訊」卡片底部（附「已報名者可加入行事曆」小字；活動狀態不是「正常舉行」時隱藏）。行事曆附註第一行是「本活動需事先報名，名額有限」，避免沒報名的人加入後直接到場。
 - **LINE 內建瀏覽器**（User-Agent 含 `Line/`）：iOS 26 實測，點 `.ics` 連結時 LINE 不會改用 Safari（`openExternalBrowser=1` 只對聊天室裡的連結有效），而是把檔案交給 iPhone 當「訂閱行事曆」處理，還改用 http，GitHub Pages 回 301 轉址，最後顯示「連線不安全」「訂閱失敗」。同一個檔案在 Safari 開啟可以正常加入。
 - **App 內建瀏覽器**（LINE：`Line/`；Instagram：`Instagram`；Facebook：`FBAN/`、`FBAV/`、`FB_IAB/`）：Instagram 裡點 `.ics` 連結完全沒有反應（2026-11-22 回報）。
-  - iPhone／iPad：按鈕連到 `x-safari-https://…/event.ics`，直接打開 Safari 的行事曆預覽，由報名者決定要不要加入（LINE 2026-11-20 實測可行：iOS 26.6.2、LINE 26.17.0；Instagram、Facebook 尚未實測）。按下 1.5 秒後網頁還在前景，就當作沒打開，改成複製連結的提示。
+  - iPhone／iPad 的 LINE：按鈕連到 `x-safari-https://…/event.ics`，直接打開 Safari 的行事曆預覽，由報名者決定要不要加入（2026-11-20 實測可行：iOS 26.6.2、LINE 26.17.0）。按下 1.5 秒後網頁還在前景，就當作沒打開，改成複製連結的提示。
+  - iPhone／iPad 的 Instagram、Facebook：Instagram 會擋掉 `x-safari-https://`（2026-11-22 實測），Facebook 用同一套內建瀏覽器，所以按鈕直接複製 `.ics` 連結並提示貼到 Safari。
   - Android：按鈕改成複製 `.ics` 連結並提示貼到瀏覽器。
   - 無法自動複製時，改顯示可選取的連結。`config.js` 的 `appleCalendar` 可以關閉這顆按鈕，網址加 `?applecal` 可在關閉時單獨測試。
 - 行事曆一律是**一次性匯入**，不提供訂閱。原因：訂閱更新慢、報名者不會知道活動改了，iPhone 預設還會移除提醒。

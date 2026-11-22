@@ -19,9 +19,10 @@
   // iPhone／iPad（iPadOS 會自稱 Macintosh，用觸控點判斷）
   const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
     (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-  // iPhone 的 App 內建瀏覽器用 x-safari-https:// 直接打開 Safari
-  // （LINE 2026-11-20 真機實測可行；Instagram、Facebook 還沒實測，失敗時會改成複製連結）
-  const SAFARI_JUMP = !!IN_APP && IS_IOS;
+  // iPhone 的 LINE 用 x-safari-https:// 直接打開 Safari（2026-11-20 真機實測可行）。
+  // Instagram 會擋掉（2026-11-22 實測），Facebook 是同一套內建瀏覽器，所以這兩個直接複製連結：
+  // 按下當下就複製，iOS 才允許；等 1.5 秒確認沒跳走再複製，通常會失敗。
+  const SAFARI_JUMP = IN_APP === 'LINE' && IS_IOS;
   const BROWSER = IS_IOS ? ' Safari ' : '瀏覽器（例如 Chrome）'; // 中英文之間的空格放在這裡
   const SAFARI_WAIT_MS = 1500; // 這段時間內網頁沒轉到背景，就當作沒打開 Safari
   // 防機器人驗證：?mock 時改用 Cloudflare 的測試金鑰（一律通過），本機預覽才不會被網域擋下
@@ -526,7 +527,7 @@
           }, SAFARI_WAIT_MS);
         });
       } else if (IN_APP) {
-        // Android 的 App 內建瀏覽器：沒有 x-safari 可用，改成複製連結，請報名者貼到瀏覽器。
+        // Android 的 App 內建瀏覽器，以及 iPhone 的 Instagram／Facebook：改成複製連結，請報名者貼到瀏覽器。
         iBtn.type = 'button';
         iBtn.addEventListener('click', () => copyIcsLink(container, icsUrl, false));
       } else {
