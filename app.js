@@ -9,14 +9,20 @@
   const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
   const REFRESH_MS = 60000;
   const ICS_PATH = 'event.ics';
-  const IN_LINE = /\bLine\//.test(navigator.userAgent); // LINE 內建瀏覽器
+  // App 內建瀏覽器（LINE、Instagram、Facebook）開不了 .ics：點了沒反應，或像 LINE 一樣變成訂閱失敗
+  const IN_APP = /\bLine\//.test(navigator.userAgent) ? 'LINE'
+    : /\bInstagram\b/.test(navigator.userAgent) ? 'Instagram'
+    : /\bFBAN\/|\bFBAV\/|\bFB_IAB\//.test(navigator.userAgent) ? 'Facebook'
+    : '';
   // 「Apple／其他」按鈕：config.js 的 appleCalendar，或網址加 ?applecal 單獨測試
   const APPLE_ON = cfg.appleCalendar === true || params.has('applecal');
   // iPhone／iPad（iPadOS 會自稱 Macintosh，用觸控點判斷）
   const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
     (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-  // iPhone 的 LINE 裡用 x-safari-https:// 直接打開 Safari（2026-11-20 真機實測可行）
-  const SAFARI_JUMP = IN_LINE && IS_IOS;
+  // iPhone 的 App 內建瀏覽器用 x-safari-https:// 直接打開 Safari
+  // （LINE 2026-11-20 真機實測可行；Instagram、Facebook 還沒實測，失敗時會改成複製連結）
+  const SAFARI_JUMP = !!IN_APP && IS_IOS;
+  const BROWSER = IS_IOS ? ' Safari ' : '瀏覽器（例如 Chrome）'; // 中英文之間的空格放在這裡
   const SAFARI_WAIT_MS = 1500; // 這段時間內網頁沒轉到背景，就當作沒打開 Safari
   // 防機器人驗證：?mock 時改用 Cloudflare 的測試金鑰（一律通過），本機預覽才不會被網域擋下
   const TURNSTILE_TEST_KEY = '1x00000000000000000000AA';
@@ -36,7 +42,7 @@
   let forceForm = false;
   let submitting = false;
   let icsInfo = null; // event.ics 的開始／結束時間（UTC），讀不到就是 null
-  let icsHint = null; // LINE 裡按過「Apple／其他」後的提示：{ container, copied, fallback }
+  let icsHint = null; // App 內建瀏覽器裡按過「Apple／其他」後的提示：{ container, copied, fallback }
   const remember = window.NightWalkRemember;
   let prefilled = false; // 這次開啟網頁已經自動帶入過，就不再覆蓋報名者改過的欄位
   let rememberAsk = null; // 成功畫面要問的：'save'、'replace' 或 null
@@ -503,12 +509,12 @@
     const icsUrl = new URL(ICS_PATH, location.href).toString();
     const buttons = [gBtn];
     if (icsMatches) {
-      const iBtn = document.createElement(IN_LINE && !SAFARI_JUMP ? 'button' : 'a');
+      const iBtn = document.createElement(IN_APP && !SAFARI_JUMP ? 'button' : 'a');
       iBtn.className = 'btn btn-ghost btn-small';
       iBtn.textContent = '🗓 Apple／其他';
       if (SAFARI_JUMP) {
         // 用 x-safari-https:// 叫出 Safari，由報名者在 Safari 的行事曆預覽決定要不要加入。
-        // 沒有正式文件、LINE 也可能擋掉，而且失敗時不會有任何反應，所以沒離開網頁就改成複製連結。
+        // 沒有正式文件、App 也可能擋掉，而且失敗時不會有任何反應，所以沒離開網頁就改成複製連結。
         iBtn.href = icsUrl.replace(/^https:\/\//, 'x-safari-https://');
         iBtn.addEventListener('click', () => {
           let left = false;
@@ -519,9 +525,8 @@
             if (!left) copyIcsLink(container, icsUrl, true);
           }, SAFARI_WAIT_MS);
         });
-      } else if (IN_LINE) {
-        // LINE 內建瀏覽器會把 .ics 交給 iPhone 當「訂閱行事曆」處理並改用 http，一定失敗
-        // （openExternalBrowser=1 對網頁裡的連結無效）。改成複製連結，請報名者貼到 Safari。
+      } else if (IN_APP) {
+        // Android 的 App 內建瀏覽器：沒有 x-safari 可用，改成複製連結，請報名者貼到瀏覽器。
         iBtn.type = 'button';
         iBtn.addEventListener('click', () => copyIcsLink(container, icsUrl, false));
       } else {
@@ -532,7 +537,7 @@
     container.classList.toggle('single', buttons.length === 1);
     container.replaceChildren(...buttons);
     // 每分鐘自動更新會重畫按鈕，提示要保留
-    if (icsMatches && IN_LINE && icsHint && icsHint.container === container) renderIcsHint(container, icsUrl, false);
+    if (icsMatches && IN_APP && icsHint && icsHint.container === container) renderIcsHint(container, icsUrl, false);
   }
 
   // fallback：試過直接打開 Safari 但沒成功
@@ -553,10 +558,10 @@
     const hint = document.createElement('div');
     hint.className = 'cal-hint';
     const p = document.createElement('p');
-    const lead = icsHint.fallback ? '沒有自動打開 Safari 的話：' : 'LINE 裡無法直接加入。';
+    const lead = icsHint.fallback ? '沒有自動打開 Safari 的話：' : IN_APP + ' 裡無法直接加入。';
     p.textContent = icsHint.copied
-      ? (icsHint.fallback ? lead + '已複製行事曆連結，' : '已複製行事曆連結。' + lead) + '請打開 Safari，把連結貼到網址列開啟，再按「加入行事曆」。'
-      : lead + '請複製下面的連結，打開 Safari 貼到網址列開啟，再按「加入行事曆」。';
+      ? (icsHint.fallback ? lead + '已複製行事曆連結，' : '已複製行事曆連結。' + lead) + '請打開' + BROWSER.trimEnd() + '，把連結貼到網址列開啟，再按「加入行事曆」。'
+      : lead + '請複製下面的連結，打開' + BROWSER + '貼到網址列開啟，再按「加入行事曆」。';
     const input = document.createElement('input');
     input.type = 'text';
     input.readOnly = true;
